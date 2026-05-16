@@ -18,7 +18,7 @@ public class FileSystemProjectInitializer {
     public Path initialize(Project project) throws IOException {
         Path projectDir = projectsRoot.resolve(sanitizeName(project.name()));
         if (Files.exists(projectDir)) {
-            throw new IllegalArgumentException("Project directory already exists: " + projectDir);
+            return projectDir;
         }
 
         Files.createDirectories(projectDir.resolve("raw"));

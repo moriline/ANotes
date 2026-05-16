@@ -66,10 +66,6 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-flyway</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging</artifactId>
         </dependency>
         <dependency>
@@ -102,11 +98,13 @@
             <artifactId>quarkus-langchain4j-core</artifactId>
             <version>${langchain4j-quarkus.version}</version>
         </dependency>
+        <!-- Ollama — раскомментируй когда запущен Ollama
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-ollama</artifactId>
             <version>${langchain4j-quarkus.version}</version>
         </dependency>
+        -->
 
         <!-- ===== LANGCHAIN4J CORE (для эмбеддингов) ===== -->
         <dependency>
@@ -136,16 +134,6 @@
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.awaitility</groupId>
-            <artifactId>awaitility</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -1,8 +1,10 @@
 package com.taskmind.api.rest;
 
+import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
+import jakarta.inject.Inject;
 import org.junit.jupiter.api.*;
 
 import static io.restassured.RestAssured.given;
@@ -12,10 +14,21 @@ import static org.hamcrest.Matchers.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AuthResourceTest {
 
+    @Inject TestDataCleanup cleanup;
+
     private static String token;
     private static final String TEST_USER = "authuser-" + System.currentTimeMillis();
     private static final String TEST_EMAIL = TEST_USER + "@example.com";
     private static final String TEST_PASS = "StrongPass123!";
+    private static boolean initialized = false;
+
+    @BeforeEach
+    void setUp() {
+        if (!initialized) {
+            cleanup.clearAll();
+            initialized = true;
+        }
+    }
 
     @Test @Order(1)
     void shouldRegisterAndGetToken() {

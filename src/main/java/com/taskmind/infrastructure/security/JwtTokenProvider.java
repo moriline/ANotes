@@ -9,10 +9,12 @@ import java.util.UUID;
 @ApplicationScoped
 public class JwtTokenProvider {
     @ConfigProperty(name = "mp.jwt.verify.issuer") String issuer;
+    @ConfigProperty(name = "mp.jwt.verify.audiences") String audience;
 
     public String generateToken(UUID userId, String username, Set<String> roles) {
         return Jwt.issuer(issuer)
             .subject(userId.toString())
+            .audience(audience)
             .groups(roles)
             .claim("username", username)
             .sign();

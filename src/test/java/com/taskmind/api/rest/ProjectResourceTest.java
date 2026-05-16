@@ -1,15 +1,15 @@
 package com.taskmind.api.rest;
 
+import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
-import io.restassured.http.ContentType;
 import io.restassured.response.Response;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
+import io.restassured.specification.RequestSpecification;
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -19,15 +19,27 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ProjectResourceTest {
 
-    private static final String TEST_PROJECT_NAME = "stage1-test-project";
+    @Inject TestDataCleanup cleanup;
+
+    private static final String TEST_PROJECT_NAME = "proj-" + UUID.randomUUID().toString().substring(0, 8);
     private static String createdProjectId;
     private static Path projectDir;
+    private static String token;
+    private static boolean initialized = false;
+
+    @BeforeEach
+    void setUp() {
+        if (!initialized) {
+            cleanup.clearAll();
+            token = TestAuthHelper.registerAndLogin("projuser-" + System.currentTimeMillis(), "proj@test.com", "Pass123!");
+            initialized = true;
+        }
+    }
 
     @Test
     @Order(1)
     void shouldCreateProjectAndDirectoryStructure() {
-        Response response = given()
-            .contentType(ContentType.JSON)
+        Response response = authenticated()
             .body("{\"name\": \"" + TEST_PROJECT_NAME + "\"}")
         .when()
             .post("/api/projects")
@@ -42,7 +54,7 @@ class ProjectResourceTest {
         createdProjectId = response.jsonPath().getString("id");
 
         String sanitized = TEST_PROJECT_NAME.replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase();
-        projectDir = Path.of(System.getProperty("user.dir"), "projects-test", sanitized);
+        projectDir = Path.of("D:/projects/java/ANotes/projects-test", sanitized);
 
         assertTrue(Files.exists(projectDir), "Project directory should exist");
         assertTrue(Files.isDirectory(projectDir.resolve("raw")), "raw/ directory should exist");
@@ -61,7 +73,7 @@ class ProjectResourceTest {
     @Test
     @Order(2)
     void shouldListActiveProjects() {
-        given()
+        authenticated()
         .when()
             .get("/api/projects")
         .then()
@@ -73,8 +85,7 @@ class ProjectResourceTest {
     @Test
     @Order(3)
     void shouldRejectDuplicateName() {
-        given()
-            .contentType(ContentType.JSON)
+        authenticated()
             .body("{\"name\": \"" + TEST_PROJECT_NAME + "\"}")
         .when()
             .post("/api/projects")
@@ -85,17 +96,33 @@ class ProjectResourceTest {
     @Test
     @Order(4)
     void shouldDeleteProject() {
-        given()
+        authenticated()
         .when()
             .delete("/api/projects/" + createdProjectId)
         .then()
             .statusCode(204);
 
-        given()
+        authenticated()
         .when().get("/api/projects")
         .then()
             .body("name", not(hasItem(TEST_PROJECT_NAME)));
 
         assertFalse(Files.exists(projectDir), "Project directory should be deleted");
+    }
+
+    @Test
+    @Order(5)
+    void shouldRejectUnauthenticatedAccess() {
+        given()
+            .contentType(io.restassured.http.ContentType.JSON)
+            .body("{\"name\": \"unauth-project\"}")
+        .when()
+            .post("/api/projects")
+        .then()
+            .statusCode(401);
+    }
+
+    private RequestSpecification authenticated() {
+        return TestAuthHelper.authenticated(token);
     }
 }

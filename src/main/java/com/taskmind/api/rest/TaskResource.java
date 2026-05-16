@@ -3,6 +3,7 @@ package com.taskmind.api.rest;
 import com.taskmind.api.dto.TaskRequest;
 import com.taskmind.api.dto.TaskResponse;
 import com.taskmind.application.service.TaskService;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -14,6 +15,7 @@ import java.util.UUID;
 @Path("/api/projects/{projectId}/tasks")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@RolesAllowed("USER")
 public class TaskResource {
 
     @Inject TaskService service;
