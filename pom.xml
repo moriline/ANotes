@@ -81,6 +81,21 @@
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
 
+        <!-- ===== SECURITY (JWT + BCrypt) ===== -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-jwt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-jwt-build</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mindrot</groupId>
+            <artifactId>jbcrypt</artifactId>
+            <version>0.4</version>
+        </dependency>
+
         <!-- ===== LANGCHAIN4J (Quarkus Extension) ===== -->
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
@@ -175,6 +190,7 @@
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                         <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                        <taskmind.test.db.name>taskmind-test-${maven.build.timestamp}</taskmind.test.db.name>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
