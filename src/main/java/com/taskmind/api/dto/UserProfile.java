@@ -1,3 +1,3 @@
 package com.taskmind.api.dto;
 
-public record UserProfile(String id, String username, String email) {}
+public record UserProfile(Integer id, String username, String email, String displayName, String avatarUrl) {}

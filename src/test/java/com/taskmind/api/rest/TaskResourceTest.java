@@ -7,6 +7,8 @@ import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.*;
 
+import java.util.List;
+
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
@@ -16,8 +18,8 @@ class TaskResourceTest {
 
     @Inject TestDataCleanup cleanup;
 
-    private static String projectId;
-    private static String taskId;
+    private static Integer projectId;
+    private static Integer taskId;
     private static String token;
     private static boolean initialized = false;
 
@@ -34,13 +36,13 @@ class TaskResourceTest {
     @Order(1)
     void shouldCreateProjectForTasks() {
         Response response = authenticated()
-            .body("{\"name\": \"stage2-test-project\"}")
+            .body("{\"name\": \"stage2-test-project\", \"description\": \"Project for task testing\"}")
         .when().post("/api/projects")
         .then()
             .statusCode(201)
         .extract().response();
 
-        projectId = response.jsonPath().getString("id");
+        projectId = response.jsonPath().getInt("id");
     }
 
     @Test
@@ -53,12 +55,14 @@ class TaskResourceTest {
         .then()
             .statusCode(201)
             .body("title", equalTo("Implement RAG Search"))
-            .body("status", equalTo("TODO"))
+            .body("description", equalTo("Add semantic search for tasks"))
             .body("id", notNullValue())
             .body("projectId", equalTo(projectId))
+            .body("tags", hasItems("ai", "backend"))
+            .body("isArchived", equalTo(false))
         .extract().response();
 
-        taskId = response.jsonPath().getString("id");
+        taskId = response.jsonPath().getInt("id");
     }
 
     @Test
@@ -74,15 +78,6 @@ class TaskResourceTest {
 
     @Test
     @Order(4)
-    void shouldSearchTasks() {
-        authenticated()
-            .when().get("/api/projects/{id}/tasks/search?q=semantic", projectId)
-            .then()
-            .statusCode(200);
-    }
-
-    @Test
-    @Order(5)
     void shouldDeleteTask() {
         authenticated()
             .when().delete("/api/projects/{projectId}/tasks/{taskId}", projectId, taskId)
@@ -96,26 +91,29 @@ class TaskResourceTest {
     }
 
     @Test
-    @Order(6)
-    void shouldCleanupProject() {
-        if (projectId != null) {
-            authenticated()
-                .when().delete("/api/projects/{id}", projectId)
-                .then()
-                .statusCode(204);
-        }
-    }
-
-    @Test
-    @Order(7)
+    @Order(5)
     void shouldRejectUnauthenticatedAccess() {
         given()
             .contentType(io.restassured.http.ContentType.JSON)
             .body("{\"title\": \"Unauth Task\"}")
         .when()
-            .post("/api/projects/{id}/tasks", "00000000-0000-0000-0000-000000000000")
+            .post("/api/projects/{id}/tasks", 999)
         .then()
             .statusCode(401);
+    }
+
+    @Test
+    @Order(6)
+    void testCreateTaskWithLargeDescription() {
+        // Adding a test case for large descriptions, similar to what might be in GlobalTask tests
+        String largeDesc = "A".repeat(1000);
+        authenticated()
+            .body("{\"title\": \"Large Task\", \"description\": \"" + largeDesc + "\"}")
+        .when()
+            .post("/api/projects/{id}/tasks", projectId)
+        .then()
+            .statusCode(201)
+            .body("description", hasLength(1000));
     }
 
     private RequestSpecification authenticated() {

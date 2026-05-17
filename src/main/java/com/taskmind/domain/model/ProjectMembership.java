@@ -1,15 +1,13 @@
 package com.taskmind.domain.model;
 
-import java.util.UUID;
-
 public record ProjectMembership(
-    UUID userId,
-    UUID projectId,
-    MembershipRole role
+    Integer id,
+    Integer projectId,
+    Integer userId,
+    Integer roleId,
+    Long joinedAt
 ) {
-    public enum MembershipRole { OWNER, EDITOR, VIEWER }
-
-    public static ProjectMembership owner(UUID userId, UUID projectId) {
-        return new ProjectMembership(userId, projectId, MembershipRole.OWNER);
+    public static ProjectMembership create(Integer projectId, Integer userId, Integer roleId) {
+        return new ProjectMembership(null, projectId, userId, roleId, System.currentTimeMillis());
     }
 }

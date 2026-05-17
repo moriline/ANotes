@@ -5,18 +5,21 @@ import com.taskmind.domain.spi.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
-import java.util.UUID;
 
 @ApplicationScoped
 public class H2UserRepository implements UserRepository {
     @Override @Transactional
     public User save(User user) {
         var entity = UserEntity.fromDomain(user);
-        entity.persist();
+        if (entity.id == null) {
+            entity.persist();
+        } else {
+            entity = entity.getEntityManager().merge(entity);
+        }
         return entity.toDomainModel();
     }
-    @Override public Optional<User> findById(UUID id) {
-        return UserEntity.<UserEntity>find("id", id).firstResultOptional().map(UserEntity::toDomainModel);
+    @Override public Optional<User> findById(Integer id) {
+        return UserEntity.<UserEntity>findByIdOptional(id).map(UserEntity::toDomainModel);
     }
     @Override public Optional<User> findByUsername(String username) {
         return UserEntity.<UserEntity>find("username", username).firstResultOptional().map(UserEntity::toDomainModel);

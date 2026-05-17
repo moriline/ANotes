@@ -2,27 +2,38 @@ package com.taskmind.domain.model;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 public record Task(
-    UUID id,
-    UUID projectId,
+    Integer id,
+    Integer projectId,
     String title,
     String description,
+    Integer creatorUserId,
+    Integer assignedUserId,
+    Integer statusId,
+    Long dueDate,
+    Long startDate,
+    Double estimatedHours,
     List<String> tags,
-    Status status,
-    Instant createdAt
+    boolean isArchived,
+    Instant createdAt,
+    Instant updatedAt
 ) {
-    public enum Status { TODO, IN_PROGRESS, DONE }
-
-    public static Task create(UUID projectId, String title, String description, List<String> tags) {
+    public static Task create(Integer projectId, String title, Integer creatorUserId) {
         return new Task(
-            UUID.randomUUID(),
+            null,
             projectId,
             title,
-            description != null ? description : "",
-            tags != null ? tags : List.of(),
-            Status.TODO,
+            null,
+            creatorUserId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(),
+            false,
+            Instant.now(),
             Instant.now()
         );
     }

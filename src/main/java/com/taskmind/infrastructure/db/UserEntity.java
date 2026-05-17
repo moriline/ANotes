@@ -4,32 +4,68 @@ import com.taskmind.domain.model.User;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users")
 public class UserEntity extends PanacheEntityBase {
-    @Id public UUID id;
-    @Column(unique = true, nullable = false) public String username;
-    @Column(unique = true, nullable = false) public String email;
-    public String passwordHash;
-    public String rolesCsv;
-    public Instant createdAt;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "userId")
+    public Integer id;
+
+    @Column(unique = true, nullable = false)
+    public String username;
+
+    @Column(unique = true, nullable = false)
+    public String email;
+
+    @Column(nullable = false)
+    public String password;
+
+    public String displayName;
+    public String avatarUrl;
+    public boolean isActive;
+
+    public Long createdAt;
+    public Long updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        long now = Instant.now().toEpochMilli();
+        if (createdAt == null) createdAt = now;
+        if (updatedAt == null) updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now().toEpochMilli();
+    }
 
     public User toDomainModel() {
-        Set<User.Role> roles = rolesCsv == null ? Set.of()
-            : Set.of(rolesCsv.split(",")).stream().map(User.Role::valueOf).collect(Collectors.toSet());
-        return new User(id, username, email, passwordHash, roles, createdAt);
+        return new User(
+            id,
+            username,
+            email,
+            password,
+            displayName,
+            avatarUrl,
+            isActive,
+            createdAt != null ? Instant.ofEpochMilli(createdAt) : null,
+            updatedAt != null ? Instant.ofEpochMilli(updatedAt) : null
+        );
     }
 
     public static UserEntity fromDomain(User u) {
         var e = new UserEntity();
-        e.id = u.id(); e.username = u.username(); e.email = u.email();
-        e.passwordHash = u.passwordHash();
-        e.rolesCsv = String.join(",", u.roles().stream().map(Enum::name).toList());
-        e.createdAt = u.createdAt();
+        e.id = u.id();
+        e.username = u.username();
+        e.email = u.email();
+        e.password = u.password();
+        e.displayName = u.displayName();
+        e.avatarUrl = u.avatarUrl();
+        e.isActive = u.isActive();
+        e.createdAt = u.createdAt() != null ? u.createdAt().toEpochMilli() : null;
+        e.updatedAt = u.updatedAt() != null ? u.updatedAt().toEpochMilli() : null;
         return e;
     }
 }

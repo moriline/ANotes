@@ -1,18 +1,19 @@
 package com.taskmind.domain.model;
 
 import java.time.Instant;
-import java.util.UUID;
 
 public record Project(
-    UUID id,
+    Integer id,
     String name,
-    String rootPath,
+    String description,
+    Integer ownerUserId,
+    String color,
+    String icon,
+    boolean isActive,
     Instant createdAt,
-    Status status
+    Instant updatedAt
 ) {
-    public enum Status { ACTIVE, ARCHIVED, DELETED }
-
-    public static Project create(String name, String rootPath) {
-        return new Project(UUID.randomUUID(), name, rootPath, Instant.now(), Status.ACTIVE);
+    public static Project create(String name, String description, Integer ownerUserId) {
+        return new Project(null, name, description, ownerUserId, "#4A90D9", null, true, Instant.now(), Instant.now());
     }
 }

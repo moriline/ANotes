@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 2: Task Management & RAG Index</title>
+  <style>
+    :root {
+      --bg: #ffffff; --text: #1f2328; --muted: #656d76; --border: #d0d7de;
+      --code-bg: #f6f8fa; --code-text: #24292f; --link: #0969da;
+      --quote-bg: #f6f8fa; --quote-border: #d0d7de; --table-stripe: #f6f8fa;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-sans); line-height: 1.6; color: var(--text); background: var(--bg); }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1, h2, h3 { margin-top: 2rem; margin-bottom: 1rem; font-weight: 600; }
+    h1 { font-size: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+    h3 { font-size: 1.25rem; }
+    p, ul, ol { margin-bottom: 1rem; }
+    ul, ol { padding-left: 1.5rem; }
+    li { margin-bottom: 0.25rem; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    blockquote { margin: 0 0 1rem; padding: 0 1rem; border-left: 4px solid var(--quote-border); background: var(--quote-bg); color: var(--muted); }
+    pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+    code { font-family: var(--font-mono); font-size: 0.9em; background: var(--code-bg); padding: 0.2em 0.4em; border-radius: 3px; color: var(--code-text); }
+    pre code { background: transparent; padding: 0; color: inherit; font-size: 0.88em; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95em; }
+    th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+    th { background: var(--code-bg); font-weight: 600; }
+    tr:nth-child(even) { background: var(--table-stripe); }
+    hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+    .badge { display: inline-block; background: #ddf4ff; color: #0969da; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; margin-right: 6px; }
+    @media (max-width: 600px) { .container { padding: 1rem; } table { font-size: 0.85em; } th, td { padding: 0.4rem; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Stage 2: Task Management & Basic RAG Index</h1>
+    <blockquote>
+      <span class="badge">Quarkus 3.14.4</span>
+      <span class="badge">Java 21 Records</span>
+      <span class="badge">No Lombok</span>
+      <span class="badge">H2 + Ollama RAG</span>
+    </blockquote>
+    <p>This stage adds <strong>Task CRUD</strong> scoped to projects, synchronizes tasks with the <code>projects/{name}/tasks/</code> filesystem, and builds a <strong>semantic RAG index</strong> for AI-powered search. All code follows the established SPI/Clean Architecture pattern.</p>
+
+    <h2>📁 File Structure to Add</h2>
+    <pre><code>src/main/java/com/taskmind/
+├── domain/
+│   ├── model/
+│   │   └── Task.java
+│   └── spi/
+│       └── TaskRepository.java
+├── infrastructure/
+│   ├── db/
+│   │   ├── TaskEntity.java
+│   │   └── H2TaskRepository.java
+│   ├── storage/
+│   │   └── FileSystemTaskSync.java
+│   └── ai/
+│       └── RagTaskIndexer.java
+├── application/
+│   └── service/
+│       └── TaskService.java
+└── api/
+    ├── dto/
+    │   ├── TaskRequest.java
+    │   └── TaskResponse.java
+    └── rest/
+        └── TaskResource.java
+
+src/main/resources/application.properties  (updated)
+src/test/java/com/taskmind/api/rest/TaskResourceTest.java</code></pre>
+
+    <h2>🧱 1. Domain Layer</h2>
+    <h3><code>com.taskmind.domain.model.Task</code></h3>
+    <pre><code>package com.taskmind.domain.model;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+public record Task(
+    UUID id,
+    UUID projectId,
+    String title,
+    String description,
+    List&lt;String&gt; tags,
+    Status status,
+    Instant createdAt
+) {
+    public enum Status { TODO, IN_PROGRESS, DONE }
+
+    public static Task create(UUID projectId, String title, String description, List&lt;String&gt; tags) {
+        return new Task(
+            UUID.randomUUID(),
+            projectId,
+            title,
+            description != null ? description : "",
+            tags != null ? tags : List.of(),
+            Status.TODO,
+            Instant.now()
+        );
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.domain.spi.TaskRepository</code></h3>
+    <pre><code>package com.taskmind.domain.spi;
+
+import com.taskmind.domain.model.Task;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface TaskRepository {
+    Task save(Task task);
+    Optional&lt;Task&gt; findById(UUID id);
+    List&lt;Task&gt; findByProject(UUID projectId);
+    void deleteById(UUID id);
+}</code></pre>
+
+    <hr>
+
+    <h2>🗄️ 2. Infrastructure Layer</h2>
+    <h3><code>com.taskmind.infrastructure.db.TaskEntity</code></h3>
+    <pre><code>package com.taskmind.infrastructure.db;
+
+import com.taskmind.domain.model.Task;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+@Entity
+@Table(name = "tasks")
+public class TaskEntity extends PanacheEntityBase {
+
+    @Id
+    public UUID id;
+    public UUID projectId;
+    public String title;
+    @Column(length = 4000)
+    public String description;
+    public String tagsJson; // Simple CSV or JSON for MVP
+    @Enumerated(EnumType.STRING)
+    public Task.Status status;
+    public Instant createdAt;
+
+    public Task toDomain() {
+        var tags = tagsJson == null || tagsJson.isBlank() ? List.&lt;String&gt;of() 
+                   : List.of(tagsJson.split(","));
+        return new Task(id, projectId, title, description, tags, status, createdAt);
+    }
+
+    public static TaskEntity fromDomain(Task t) {
+        var e = new TaskEntity();
+        e.id = t.id();
+        e.projectId = t.projectId();
+        e.title = t.title();
+        e.description = t.description();
+        e.tagsJson = String.join(",", t.tags());
+        e.status = t.status();
+        e.createdAt = t.createdAt();
+        return e;
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.infrastructure.db.H2TaskRepository</code></h3>
+    <pre><code>package com.taskmind.infrastructure.db;
+
+import com.taskmind.domain.model.Task;
+import com.taskmind.domain.spi.TaskRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class H2TaskRepository implements TaskRepository {
+
+    @Override
+    @Transactional
+    public Task save(Task task) {
+        var entity = TaskEntity.fromDomain(task);
+        entity.persist();
+        return entity.toDomain();
+    }
+
+    @Override
+    public Optional&lt;Task&gt; findById(UUID id) {
+        return TaskEntity.findByIdOptional(id).map(TaskEntity::toDomain);
+    }
+
+    @Override
+    public List&lt;Task&gt; findByProject(UUID projectId) {
+        return TaskEntity.list("projectId", projectId)
+            .stream().map(TaskEntity::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(UUID id) {
+        TaskEntity.deleteById(id);
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.infrastructure.storage.FileSystemTaskSync</code></h3>
+    <pre><code>package com.taskmind.infrastructure.storage;
+
+import com.taskmind.domain.model.Task;
+import com.taskmind.infrastructure.db.ProjectEntity;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.quarkus.runtime.Startup;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+@ApplicationScoped
+@Startup
+public class FileSystemTaskSync {
+
+    private final ObjectMapper mapper;
+    private final Path projectsRoot;
+
+    public FileSystemTaskSync(@ConfigProperty(name = "taskmind.projects.root", defaultValue = "${user.dir}/projects") Path root) {
+        this.projectsRoot = root;
+        this.mapper = new ObjectMapper();
+        this.mapper.registerModule(new JavaTimeModule());
+    }
+
+    public Path syncToDisk(Task task) throws IOException {
+        var project = ProjectEntity.findById(task.projectId());
+        if (project == null) throw new IllegalArgumentException("Project not found: " + task.projectId());
+
+        Path taskDir = projectsRoot.resolve(sanitize(project.name)).resolve("tasks");
+        Files.createDirectories(taskDir);
+        Path taskFile = taskDir.resolve(task.id() + ".json");
+        mapper.writerWithDefaultPrettyPrinter().writeValue(taskFile.toFile(), task);
+        return taskFile;
+    }
+
+    public void deleteFromDisk(Task task) throws IOException {
+        var project = ProjectEntity.findById(task.projectId());
+        if (project == null) return;
+        Path taskFile = projectsRoot.resolve(sanitize(project.name))
+                                    .resolve("tasks")
+                                    .resolve(task.id() + ".json");
+        Files.deleteIfExists(taskFile);
+    }
+
+    private String sanitize(String name) {
+        return name.replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase();
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.infrastructure.ai.RagTaskIndexer</code></h3>
+    <pre><code>package com.taskmind.infrastructure.ai;
+
+import dev.langchain4j.data.document.Metadata;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
+import dev.langchain4j.store.embedding.EmbeddingStore;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class RagTaskIndexer {
+
+    @Inject EmbeddingModel embeddingModel;
+    @Inject EmbeddingStore&lt;TextSegment&gt; embeddingStore;
+
+    public void indexTask(UUID taskId, UUID projectId, String content) {
+        if (content == null || content.isBlank()) return;
+        try {
+            Embedding embedding = embeddingModel.embed(content).content();
+            Metadata meta = Metadata.metadata("taskId", taskId.toString())
+                                    .metadata("projectId", projectId.toString());
+            embeddingStore.add(embedding, TextSegment.from(content, meta));
+        } catch (Exception e) {
+            System.err.println("RAG indexing failed (Ollama may be offline): " + e.getMessage());
+        }
+    }
+
+    public List&lt;String&gt; searchTaskIds(UUID projectId, String query, int topK) {
+        try {
+            Embedding queryEmbed = embeddingModel.embed(query).content();
+            List&lt;EmbeddingMatch&lt;TextSegment&gt;&gt; matches = embeddingStore.findRelevant(queryEmbed, topK, 0.5);
+            return matches.stream()
+                .filter(m -> m.embedding().isPresent())
+                .map(m -> m.embedded().metadata().getString("taskId"))
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>⚙️ 3. Application & API Layer</h2>
+    <h3><code>com.taskmind.application.service.TaskService</code></h3>
+    <pre><code>package com.taskmind.application.service;
+
+import com.taskmind.domain.model.Task;
+import com.taskmind.domain.spi.TaskRepository;
+import com.taskmind.infrastructure.ai.RagTaskIndexer;
+import com.taskmind.infrastructure.storage.FileSystemTaskSync;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.util.List;
+import java.util.UUID;
+
+@ApplicationScoped
+public class TaskService {
+
+    @Inject TaskRepository repository;
+    @Inject FileSystemTaskSync fsSync;
+    @Inject RagTaskIndexer ragIndexer;
+
+    @Transactional
+    public Task createTask(UUID projectId, String title, String description, List&lt;String&gt; tags) {
+        var task = Task.create(projectId, title, description, tags);
+        repository.save(task);
+        try { fsSync.syncToDisk(task); } catch (Exception e) { System.err.println("FS sync failed: " + e.getMessage()); }
+        ragIndexer.indexTask(task.id(), projectId, task.title() + "\n" + task.description());
+        return task;
+    }
+
+    public List&lt;Task&gt; listByProject(UUID projectId) {
+        return repository.findByProject(projectId);
+    }
+
+    public List&lt;Task&gt; searchByProject(UUID projectId, String query) {
+        var ids = ragIndexer.searchTaskIds(projectId, query, 5);
+        if (ids.isEmpty()) return List.of();
+        return ids.stream()
+            .map(UUID::fromString)
+            .map(repository::findById)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+    }
+
+    @Transactional
+    public void deleteTask(UUID taskId) {
+        var task = repository.findById(taskId)
+            .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+        try { fsSync.deleteFromDisk(task); } catch (Exception e) { System.err.println("FS delete failed: " + e.getMessage()); }
+        repository.deleteById(taskId);
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.api.dto.TaskRequest</code></h3>
+    <pre><code>package com.taskmind.api.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+
+public record TaskRequest(
+    @NotBlank String title,
+    String description,
+    List&lt;String&gt; tags
+) {}</code></pre>
+
+    <h3><code>com.taskmind.api.dto.TaskResponse</code></h3>
+    <pre><code>package com.taskmind.api.dto;
+
+import com.taskmind.domain.model.Task;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+public record TaskResponse(
+    UUID id, UUID projectId, String title, String description,
+    List&lt;String&gt; tags, String status, Instant createdAt
+) {
+    public static TaskResponse from(Task t) {
+        return new TaskResponse(t.id(), t.projectId(), t.title(), t.description(),
+                                t.tags(), t.status().name(), t.createdAt());
+    }
+}</code></pre>
+
+    <h3><code>com.taskmind.api.rest.TaskResource</code></h3>
+    <pre><code>package com.taskmind.api.rest;
+
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskResponse;
+import com.taskmind.application.service.TaskService;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import java.util.List;
+import java.util.UUID;
+
+@Path("/api/projects/{projectId}/tasks")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+public class TaskResource {
+
+    @Inject TaskService service;
+
+    @POST
+    public Response create(@PathParam("projectId") UUID projectId, @Valid TaskRequest req) {
+        var created = service.createTask(projectId, req.title(), req.description(), req.tags());
+        return Response.status(Response.Status.CREATED).entity(TaskResponse.from(created)).build();
+    }
+
+    @GET
+    public List&lt;TaskResponse&gt; list(@PathParam("projectId") UUID projectId) {
+        return service.listByProject(projectId).stream().map(TaskResponse::from).toList();
+    }
+
+    @GET
+    @Path("/search")
+    public List&lt;TaskResponse&gt; search(@PathParam("projectId") UUID projectId, @QueryParam("q") String query) {
+        return service.searchByProject(projectId, query).stream().map(TaskResponse::from).toList();
+    }
+
+    @DELETE
+    @Path("/{taskId}")
+    public Response delete(@PathParam("taskId") UUID taskId) {
+        service.deleteTask(taskId);
+        return Response.noContent().build();
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>⚙️ 4. Configuration & Tests</h2>
+    <h3>Update <code>src/main/resources/application.properties</code></h3>
+    <pre><code># === Stage 2 Additions ===
+# Enable embedding store for RAG (In-Memory for MVP)
+quarkus.langchain4j.embedding-model.provider=ollama
+quarkus.langchain4j.ollama.embedding-model.model-id=nomic-embed-text
+quarkus.langchain4j.embedding-store.type=in-memory
+
+# Keep existing DB & FS config from Stage 1
+quarkus.datasource.db-kind=h2
+quarkus.datasource.jdbc.url=jdbc:h2:mem:taskmind;DB_CLOSE_DELAY=-1
+quarkus.hibernate-orm.database.generation=update
+taskmind.projects.root=${user.dir}/projects</code></pre>
+
+    <h3><code>src/test/java/com/taskmind/api/rest/TaskResourceTest.java</code></h3>
+    <pre><code>package com.taskmind.api.rest;
+
+import com.taskmind.api.dto.ProjectRequest;
+import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
+import org.junit.jupiter.api.*;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+@QuarkusTest
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class TaskResourceTest {
+
+    private static String projectId;
+
+    @BeforeAll
+    static void setupProject() {
+        projectId = given()
+            .contentType(ContentType.JSON)
+            .body("{\"name\": \"stage2-test-project\"}")
+        .when().post("/api/projects")
+        .then().extract().path("id");
+    }
+
+    @Test
+    @Order(1)
+    void shouldCreateTask() {
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"title\": \"Implement RAG Search\", \"description\": \"Add semantic search for tasks\", \"tags\": [\"ai\", \"backend\"]}")
+        .when()
+            .post("/api/projects/{id}/tasks", projectId)
+        .then()
+            .statusCode(201)
+            .body("title", equalTo("Implement RAG Search"))
+            .body("status", equalTo("TODO"))
+            .body("id", notNullValue());
+    }
+
+    @Test
+    @Order(2)
+    void shouldListAndSearchTasks() {
+        given().when().get("/api/projects/{id}/tasks", projectId)
+            .then().statusCode(200).body("size()", greaterThanOrEqualTo(1));
+
+        // RAG search depends on Ollama running. Will return 200 even if empty.
+        given().when().get("/api/projects/{id}/tasks/search?q=semantic", projectId)
+            .then().statusCode(200);
+    }
+
+    @Test
+    @Order(3)
+    void shouldDeleteTask() {
+        String taskId = given().when().get("/api/projects/{id}/tasks", projectId)
+            .then().extract().path("[0].id");
+
+        given().when().delete("/api/projects/{projectId}/tasks/{taskId}", projectId, taskId)
+            .then().statusCode(204);
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>🚀 Run & Verify</h2>
+    <ol>
+      <li><strong>Start Ollama & Models:</strong>
+        <pre><code>ollama serve
+ollama pull nomic-embed-text</code></pre>
+      </li>
+      <li><strong>Run Application:</strong>
+        <pre><code>mvn clean quarkus:dev -U</code></pre>
+      </li>
+      <li><strong>Verify Endpoints (curl or Postman):</strong>
+        <pre><code># 1. Get Project ID first (if not cached)
+PROJECT_ID=$(curl -s -X POST http://localhost:8080/api/projects -H "Content-Type: application/json" -d '{"name":"demo-project"}' | jq -r '.id')
+
+# 2. Create Task
+curl -X POST http://localhost:8080/api/projects/$PROJECT_ID/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Test RAG Index","description":"This task will be semantically searchable","tags":["test"]}'
+
+# 3. List Tasks
+curl http://localhost:8080/api/projects/$PROJECT_ID/tasks
+
+# 4. Semantic Search (RAG)
+curl "http://localhost:8080/api/projects/$PROJECT_ID/tasks/search?q=semantically"
+
+# 5. Delete Task
+curl -X DELETE http://localhost:8080/api/projects/$PROJECT_ID/tasks/<TASK_ID></code></pre>
+      </li>
+      <li><strong>Check Filesystem:</strong> Verify JSON files appear in <code>projects/demo-project/tasks/&lt;UUID&gt;.json</code>.</li>
+    </ol>
+
+    <hr>
+    <p><em>Stage 2 complete. Tasks are now synchronized across DB, FS, and Vector Index. Ready for Stage 3 (Knowledge Base ingestion & advanced RAG workflows).</em></p>
+  </div>
+</body>
+</html>

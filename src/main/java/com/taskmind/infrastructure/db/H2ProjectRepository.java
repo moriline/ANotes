@@ -6,7 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -16,13 +15,17 @@ public class H2ProjectRepository implements ProjectRepository {
     @Transactional
     public Project save(Project project) {
         var entity = ProjectEntity.fromDomain(project);
-        entity.persist();
+        if (entity.id == null) {
+            entity.persist();
+        } else {
+            entity = entity.getEntityManager().merge(entity);
+        }
         return entity.toDomainModel();
     }
 
     @Override
-    public Optional<Project> findById(UUID id) {
-        return ProjectEntity.<ProjectEntity>find("id", id).firstResultOptional()
+    public Optional<Project> findById(Integer id) {
+        return ProjectEntity.<ProjectEntity>findByIdOptional(id)
             .map(ProjectEntity::toDomainModel);
     }
 
@@ -34,13 +37,13 @@ public class H2ProjectRepository implements ProjectRepository {
 
     @Override
     public List<Project> findAllActive() {
-        return ProjectEntity.<ProjectEntity>list("status", Project.Status.ACTIVE)
+        return ProjectEntity.<ProjectEntity>list("isActive", true)
             .stream().map(ProjectEntity::toDomainModel).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public void deleteById(UUID id) {
+    public void deleteById(Integer id) {
         ProjectEntity.deleteById(id);
     }
 }

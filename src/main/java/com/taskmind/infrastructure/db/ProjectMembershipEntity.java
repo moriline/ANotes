@@ -1,41 +1,43 @@
 package com.taskmind.infrastructure.db;
 
 import com.taskmind.domain.model.ProjectMembership;
-import com.taskmind.domain.model.ProjectMembership.MembershipRole;
-import com.taskmind.domain.spi.MembershipRepository;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.*;
-import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Entity
-@Table(name = "project_memberships", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"userId", "projectId"})
+@Table(name = "projectMembers", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"projectId", "userId"})
 })
 public class ProjectMembershipEntity extends PanacheEntityBase {
-    @Id public UUID id;
-    public UUID userId;
-    public UUID projectId;
-    public String role;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "projectMemberId")
+    public Integer id;
 
-    public static Optional<ProjectMembershipEntity> findByUserAndProject(UUID userId, UUID projectId) {
-        return find("userId = ?1 and projectId = ?2", userId, projectId).firstResultOptional();
-    }
+    @Column(nullable = false)
+    public Integer projectId;
 
-    public static List<ProjectMembershipEntity> findByUser(UUID userId) {
-        return list("userId", userId);
+    @Column(nullable = false)
+    public Integer userId;
+
+    @Column(nullable = false)
+    public Integer roleId;
+
+    public Long joinedAt;
+
+    public ProjectMembership toDomainModel() {
+        return new ProjectMembership(id, projectId, userId, roleId, joinedAt);
     }
 
     public static ProjectMembershipEntity fromDomain(ProjectMembership m) {
         var e = new ProjectMembershipEntity();
-        e.id = UUID.randomUUID();
-        e.userId = m.userId();
+        e.id = m.id();
         e.projectId = m.projectId();
-        e.role = m.role().name();
+        e.userId = m.userId();
+        e.roleId = m.roleId();
+        e.joinedAt = m.joinedAt();
         return e;
     }
 }

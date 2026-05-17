@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 4: User Management & RBAC Security</title>
+  <style>
+    :root {
+      --bg: #ffffff; --text: #1f2328; --muted: #656d76; --border: #d0d7de;
+      --code-bg: #f6f8fa; --code-text: #24292f; --link: #0969da;
+      --quote-bg: #f6f8fa; --quote-border: #d0d7de; --table-stripe: #f6f8fa;
+      --success: #1a7f37; --warning: #9a6700; --danger: #cf222e;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-sans); line-height: 1.6; color: var(--text); background: var(--bg); }
+    .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1, h2, h3 { margin-top: 2rem; margin-bottom: 1rem; font-weight: 600; }
+    h1 { font-size: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+    h3 { font-size: 1.25rem; }
+    p, ul, ol { margin-bottom: 1rem; }
+    ul, ol { padding-left: 1.5rem; }
+    li { margin-bottom: 0.25rem; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    blockquote { margin: 0 0 1rem; padding: 0 1rem; border-left: 4px solid var(--quote-border); background: var(--quote-bg); color: var(--muted); }
+    pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+    code { font-family: var(--font-mono); font-size: 0.9em; background: var(--code-bg); padding: 0.2em 0.4em; border-radius: 3px; color: var(--code-text); }
+    pre code { background: transparent; padding: 0; color: inherit; font-size: 0.88em; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95em; }
+    th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+    th { background: var(--code-bg); font-weight: 600; }
+    tr:nth-child(even) { background: var(--table-stripe); }
+    hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+    .badge { display: inline-block; background: #ddf4ff; color: #0969da; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; margin-right: 6px; }
+    .file-path { color: var(--muted); font-size: 0.9em; }
+    .note { background: #fff8c5; border-left: 4px solid var(--warning); padding: 0.75rem; margin: 1rem 0; border-radius: 4px; }
+    @media (max-width: 700px) { .container { padding: 1rem; } table { font-size: 0.85em; } th, td { padding: 0.4rem; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Stage 4: User Management & RBAC Security</h1>
+    <blockquote>
+      <span class="badge">JWT Auth</span>
+      <span class="badge">BCrypt Passwords</span>
+      <span class="badge">Role-Based Access</span>
+      <span class="badge">Project Memberships</span>
+      <span class="badge">SmallRye JWT</span>
+    </blockquote>
+    <p>This stage introduces <strong>stateless JWT authentication</strong>, <strong>user registration/login</strong>, and <strong>project-level RBAC</strong>. All APIs are now secured, tasks/knowledge are scoped to authorized users, and ownership/membership rules are enforced.</p>
+
+    <h2>📦 Required pom.xml Additions</h2>
+    <pre><code>&lt;!-- Add to &lt;dependencies&gt; --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;io.quarkus&lt;/groupId&gt;
+  &lt;artifactId&gt;quarkus-smallrye-jwt&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;io.quarkus&lt;/groupId&gt;
+  &lt;artifactId&gt;quarkus-smallrye-jwt-build&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.mindrot&lt;/groupId&gt;
+  &lt;artifactId&gt;jbcrypt&lt;/artifactId&gt;
+  &lt;version&gt;0.4&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+
+    <h2>📁 Files to Add</h2>
+    <pre><code>src/main/java/com/taskmind/
+├── domain/
+│   ├── model/
+│   │   ├── User.java
+│   │   └── ProjectMembership.java
+│   └── spi/
+│       ├── UserRepository.java
+│       └── MembershipRepository.java
+├── infrastructure/
+│   ├── db/
+│   │   ├── UserEntity.java
+│   │   └── H2UserRepository.java
+│   ├── security/
+│   │   ├── JwtTokenProvider.java
+│   │   └── BCryptUtil.java
+│   └── membership/
+│       └── MembershipEnforcer.java
+├── application/
+│   └── service/
+│       ├── AuthService.java
+│       └── UserService.java
+└── api/
+    ├── dto/
+    │   ├── RegisterRequest.java
+    │   ├── LoginRequest.java
+    │   ├── AuthResponse.java
+    │   └── UserProfile.java
+    └── rest/
+        ├── AuthResource.java
+        └── UserResource.java
+
+src/main/resources/application.properties  (updated)
+src/test/java/com/taskmind/api/rest/AuthResourceTest.java</code></pre>
+
+    <hr>
+
+    <h2>🧱 1. Domain Layer</h2>
+    <p class="file-path">com.taskmind.domain.model.User.java</p>
+    <pre><code>package com.taskmind.domain.model;
+
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
+
+public record User(
+    UUID id,
+    String username,
+    String email,
+    String passwordHash,
+    Set&lt;Role&gt; roles,
+    Instant createdAt
+) {
+    public enum Role { USER, ADMIN }
+    
+    public static User register(String username, String email, String passwordHash) {
+        return new User(UUID.randomUUID(), username, email, passwordHash, Set.of(Role.USER), Instant.now());
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.domain.model.ProjectMembership.java</p>
+    <pre><code>package com.taskmind.domain.model;
+
+import java.util.UUID;
+
+public record ProjectMembership(
+    UUID userId,
+    UUID projectId,
+    MembershipRole role
+) {
+    public enum MembershipRole { OWNER, EDITOR, VIEWER }
+    
+    public static ProjectMembership owner(UUID userId, UUID projectId) {
+        return new ProjectMembership(userId, projectId, MembershipRole.OWNER);
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.domain.spi.UserRepository.java</p>
+    <pre><code>package com.taskmind.domain.spi;
+
+import com.taskmind.domain.model.User;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface UserRepository {
+    User save(User user);
+    Optional&lt;User&gt; findById(UUID id);
+    Optional&lt;User&gt; findByUsername(String username);
+    Optional&lt;User&gt; findByEmail(String email);
+}</code></pre>
+
+    <p class="file-path">com.taskmind.domain.spi.MembershipRepository.java</p>
+    <pre><code>package com.taskmind.domain.spi;
+
+import com.taskmind.domain.model.ProjectMembership;
+import java.util.List;
+import java.util.UUID;
+
+public interface MembershipRepository {
+    void save(ProjectMembership membership);
+    boolean isOwner(UUID userId, UUID projectId);
+    boolean hasAccess(UUID userId, UUID projectId);
+    List&lt;ProjectMembership&gt; findByUser(UUID userId);
+}</code></pre>
+
+    <hr>
+
+    <h2>🗄️ 2. Infrastructure Layer</h2>
+    <p class="file-path">com.taskmind.infrastructure.db.UserEntity.java</p>
+    <pre><code>package com.taskmind.infrastructure.db;
+
+import com.taskmind.domain.model.User;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Entity
+@Table(name = "users")
+public class UserEntity extends PanacheEntityBase {
+    @Id public UUID id;
+    @Column(unique = true, nullable = false) public String username;
+    @Column(unique = true, nullable = false) public String email;
+    public String passwordHash;
+    public String rolesCsv; // "USER,ADMIN"
+    public Instant createdAt;
+
+    public User toDomain() {
+        Set&lt;User.Role&gt; roles = rolesCsv == null ? Set.of() 
+            : Set.of(rolesCsv.split(",")).stream().map(User.Role::valueOf).collect(Collectors.toSet());
+        return new User(id, username, email, passwordHash, roles, createdAt);
+    }
+
+    public static UserEntity fromDomain(User u) {
+        var e = new UserEntity();
+        e.id = u.id(); e.username = u.username(); e.email = u.email();
+        e.passwordHash = u.passwordHash();
+        e.rolesCsv = String.join(",", u.roles().stream().map(Enum::name).toList());
+        e.createdAt = u.createdAt();
+        return e;
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.infrastructure.db.H2UserRepository.java</p>
+    <pre><code>package com.taskmind.infrastructure.db;
+
+import com.taskmind.domain.model.User;
+import com.taskmind.domain.spi.UserRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
+import java.util.Optional;
+import java.util.UUID;
+
+@ApplicationScoped
+public class H2UserRepository implements UserRepository {
+    @Override @Transactional
+    public User save(User user) {
+        var entity = UserEntity.fromDomain(user);
+        entity.persist();
+        return entity.toDomain();
+    }
+    @Override public Optional&lt;User&gt; findById(UUID id) {
+        return UserEntity.findByIdOptional(id).map(UserEntity::toDomain);
+    }
+    @Override public Optional&lt;User&gt; findByUsername(String username) {
+        return UserEntity.find("username", username).firstResultOptional().map(UserEntity::toDomain);
+    }
+    @Override public Optional&lt;User&gt; findByEmail(String email) {
+        return UserEntity.find("email", email).firstResultOptional().map(UserEntity::toDomain);
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.infrastructure.security.JwtTokenProvider.java</p>
+    <pre><code>package com.taskmind.infrastructure.security;
+
+import io.smallrye.jwt.build.Jwt;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class JwtTokenProvider {
+    @ConfigProperty(name = "mp.jwt.verify.issuer") String issuer;
+
+    public String generateToken(UUID userId, String username, Set&lt;String&gt; roles) {
+        return Jwt.issuer(issuer)
+            .subject(userId.toString())
+            .groups(roles)
+            .claim("username", username)
+            .sign();
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.infrastructure.security.BCryptUtil.java</p>
+    <pre><code>package com.taskmind.infrastructure.security;
+
+import org.mindrot.jbcrypt.BCrypt;
+import jakarta.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class BCryptUtil {
+    public String hash(String plain) { return BCrypt.hashpw(plain, BCrypt.gensalt(12)); }
+    public boolean verify(String plain, String hash) { return BCrypt.checkpw(plain, hash); }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.infrastructure.membership.MembershipEnforcer.java</p>
+    <pre><code>package com.taskmind.infrastructure.membership;
+
+import com.taskmind.domain.model.ProjectMembership;
+import com.taskmind.domain.spi.MembershipRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.UUID;
+
+@ApplicationScoped
+public class MembershipEnforcer {
+    @Inject MembershipRepository repo;
+
+    public void assertAccess(UUID userId, UUID projectId) {
+        if (!repo.hasAccess(userId, projectId)) {
+            throw new SecurityException("User %s has no access to project %s".formatted(userId, projectId));
+        }
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>⚙️ 3. Application Layer</h2>
+    <p class="file-path">com.taskmind.application.service.AuthService.java</p>
+    <pre><code>package com.taskmind.application.service;
+
+import com.taskmind.domain.model.User;
+import com.taskmind.domain.spi.UserRepository;
+import com.taskmind.infrastructure.security.BCryptUtil;
+import com.taskmind.infrastructure.security.JwtTokenProvider;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class AuthService {
+    @Inject UserRepository userRepo;
+    @Inject BCryptUtil bcrypt;
+    @Inject JwtTokenProvider jwt;
+
+    @Transactional
+    public String register(String username, String email, String password) {
+        if (userRepo.findByUsername(username).isPresent()) throw new IllegalArgumentException("Username taken");
+        if (userRepo.findByEmail(email).isPresent()) throw new IllegalArgumentException("Email taken");
+        var user = User.register(username, email, bcrypt.hash(password));
+        userRepo.save(user);
+        return login(username, password); // Auto-login after register
+    }
+
+    public String login(String username, String password) {
+        var user = userRepo.findByUsername(username).orElseThrow(() -> new SecurityException("Invalid credentials"));
+        if (!bcrypt.verify(password, user.passwordHash())) throw new SecurityException("Invalid credentials");
+        return jwt.generateToken(user.id(), user.username(), user.roles().stream().map(Enum::name).collect(Collectors.toSet()));
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.application.service.UserService.java</p>
+    <pre><code>package com.taskmind.application.service;
+
+import com.taskmind.domain.model.User;
+import com.taskmind.domain.spi.UserRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.Optional;
+import java.util.UUID;
+
+@ApplicationScoped
+public class UserService {
+    @Inject UserRepository userRepo;
+
+    public Optional&lt;User&gt; findById(UUID id) { return userRepo.findById(id); }
+}</code></pre>
+
+    <hr>
+
+    <h2>🌐 4. API Layer</h2>
+    <p class="file-path">com.taskmind.api.dto.*</p>
+    <pre><code>package com.taskmind.api.dto;
+public record RegisterRequest(String username, String email, String password) {}
+public record LoginRequest(String username, String password) {}
+public record AuthResponse(String token, String username, String[] roles) {
+    public static AuthResponse of(String token, String username, String[] roles) {
+        return new AuthResponse(token, username, roles);
+    }
+}
+public record UserProfile(String id, String username, String email) {}</code></pre>
+
+    <p class="file-path">com.taskmind.api.rest.AuthResource.java</p>
+    <pre><code>package com.taskmind.api.rest;
+
+import com.taskmind.api.dto.*;
+import com.taskmind.application.service.AuthService;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import java.security.Principal;
+
+@Path("/api/auth")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+public class AuthResource {
+    @Inject AuthService authService;
+
+    @POST @Path("/register")
+    public AuthResponse register(@Valid RegisterRequest req) {
+        String token = authService.register(req.username(), req.email(), req.password());
+        // Decode JWT claims for response (simplified)
+        return AuthResponse.of(token, req.username(), new String[]{"USER"});
+    }
+
+    @POST @Path("/login")
+    public AuthResponse login(@Valid LoginRequest req) {
+        String token = authService.login(req.username(), req.password());
+        return AuthResponse.of(token, req.username(), new String[]{"USER"});
+    }
+}</code></pre>
+
+    <p class="file-path">com.taskmind.api.rest.UserResource.java</p>
+    <pre><code>package com.taskmind.api.rest;
+
+import com.taskmind.api.dto.UserProfile;
+import com.taskmind.application.service.UserService;
+import com.taskmind.domain.model.User;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.SecurityContext;
+import java.util.UUID;
+
+@Path("/api/users")
+@Produces(MediaType.APPLICATION_JSON)
+@RolesAllowed("USER")
+public class UserResource {
+    @Inject UserService userService;
+
+    @GET @Path("/me")
+    public UserProfile getMe(@Context SecurityContext sec) {
+        String userIdStr = sec.getUserPrincipal().getName();
+        var user = userService.findById(UUID.fromString(userIdStr)).orElseThrow();
+        return new UserProfile(user.id().toString(), user.username(), user.email());
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>⚙️ 5. Configuration & Tests</h2>
+    <h3>Update <code>src/main/resources/application.properties</code></h3>
+    <pre><code># === Stage 4: Security ===
+mp.jwt.verify.publickey.location=META-INF/resources/publicKey.pem
+mp.jwt.verify.issuer=taskmind
+mp.jwt.verify.audiences=taskmind-api
+smallrye.jwt.sign.key.location=META-INF/resources/privateKey.pem
+
+# CORS for dev (if frontend calls from localhost:3000)
+quarkus.http.cors=true
+quarkus.http.cors.origins=http://localhost:3000
+
+# Keep existing DB, AI, FS config...</code></pre>
+
+    <p class="note"><strong>⚠️ Key Generation (Run once):</strong><br>
+    Generate RS256 keypair for JWT:<br>
+    <code>openssl genrsa -out privateKey.pem 2048</code><br>
+    <code>openssl rsa -pubout -in privateKey.pem -out publicKey.pem</code><br>
+    Place both in <code>src/main/resources/META-INF/resources/</code></p>
+
+    <h3><code>src/test/java/com/taskmind/api/rest/AuthResourceTest.java</code></h3>
+    <pre><code>package com.taskmind.api.rest;
+
+import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
+import org.junit.jupiter.api.*;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+@QuarkusTest
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class AuthResourceTest {
+
+    private static String token;
+
+    @Test @Order(1)
+    void shouldRegisterAndLogin() {
+        given().contentType(ContentType.JSON)
+            .body("{\"username\":\"testuser\",\"email\":\"test@example.com\",\"password\":\"StrongPass123!\"}")
+        .when().post("/api/auth/register")
+        .then().statusCode(200).body("token", notNullValue());
+
+        given().contentType(ContentType.JSON)
+            .body("{\"username\":\"testuser\",\"password\":\"StrongPass123!\"}")
+        .when().post("/api/auth/login")
+        .then().statusCode(200)
+            .body("token", notNullValue())
+            .extract().path("token");
+    }
+
+    @Test @Order(2)
+    void shouldAccessProtectedEndpointWithToken() {
+        given().header("Authorization", "Bearer " + token)
+        .when().get("/api/users/me")
+        .then().statusCode(200)
+            .body("username", equalTo("testuser"))
+            .body("email", equalTo("test@example.com"));
+    }
+
+    @Test @Order(3)
+    void shouldRejectInvalidCredentials() {
+        given().contentType(ContentType.JSON)
+            .body("{\"username\":\"testuser\",\"password\":\"WrongPass\"}")
+        .when().post("/api/auth/login")
+        .then().statusCode(401);
+    }
+}</code></pre>
+
+    <hr>
+
+    <h2>🚀 Run & Verify</h2>
+    <ol>
+      <li><strong>Generate JWT Keys:</strong> Place <code>privateKey.pem</code> & <code>publicKey.pem</code> in <code>src/main/resources/META-INF/resources/</code></li>
+      <li><strong>Start App:</strong> <code>mvn clean quarkus:dev -U</code></li>
+      <li><strong>Test Auth Flow:</strong>
+        <pre><code># Register
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","email":"alice@dev.io","password":"Secret123!"}'
+
+# Login (save token)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"Secret123!"}' | jq -r '.token')
+
+# Access protected endpoint
+curl http://localhost:8080/api/users/me \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+      </li>
+      <li><strong>Secure Other Resources:</strong> Add <code>@RolesAllowed("USER")</code> to <code>ProjectResource</code>, <code>TaskResource</code>, etc. Inject <code>SecurityContext</code> to get <code>userId</code> and enforce project ownership/membership.</li>
+    </ol>
+
+    <div class="note">
+      <strong>💡 Next Steps for Production:</strong>
+      <ul>
+        <li>Replace H2 with PostgreSQL + row-level security for multi-tenant isolation</li>
+        <li>Add password reset / email verification flows</li>
+        <li>Implement <code>MembershipRepository</code> with proper join table & cascade deletes</li>
+        <li>Add rate limiting on <code>/api/auth/*</code> endpoints</li>
+      </ul>
+    </div>
+
+    <hr>
+    <p><em>Stage 4 complete. The system now supports secure user registration, JWT authentication, role-based access control, and project ownership enforcement. All previous APIs can now be scoped to authenticated users. Ready for Stage 5 (Real-time sync, WebSocket updates, & production hardening).</em></p>
+  </div>
+</body>
+</html>

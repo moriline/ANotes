@@ -1,38 +1,46 @@
 package com.taskmind.infrastructure.db;
 
 import com.taskmind.domain.model.ProjectMembership;
-import com.taskmind.domain.model.ProjectMembership.MembershipRole;
 import com.taskmind.domain.spi.MembershipRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class H2MembershipRepository implements MembershipRepository {
-    @Override @Transactional
-    public void save(ProjectMembership membership) {
+
+    @Override
+    @Transactional
+    public ProjectMembership save(ProjectMembership membership) {
         var entity = ProjectMembershipEntity.fromDomain(membership);
-        entity.persist();
+        if (entity.id == null) {
+            entity.persist();
+        } else {
+            entity = entity.getEntityManager().merge(entity);
+        }
+        return entity.toDomainModel();
     }
 
     @Override
-    public boolean isOwner(UUID userId, UUID projectId) {
-        return ProjectMembershipEntity.findByUserAndProject(userId, projectId)
-            .map(e -> MembershipRole.OWNER.name().equals(e.role))
-            .orElse(false);
+    public Optional<ProjectMembership> findByUserAndProject(Integer userId, Integer projectId) {
+        return ProjectMembershipEntity.find("userId = ?1 and projectId = ?2", userId, projectId)
+                .firstResultOptional()
+                .map(e -> ((ProjectMembershipEntity) e).toDomainModel());
     }
 
     @Override
-    public boolean hasAccess(UUID userId, UUID projectId) {
-        return ProjectMembershipEntity.findByUserAndProject(userId, projectId).isPresent();
+    public List<ProjectMembership> findByUser(Integer userId) {
+        return ProjectMembershipEntity.list("userId", userId)
+                .stream()
+                .map(e -> ((ProjectMembershipEntity) e).toDomainModel())
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<ProjectMembership> findByUser(UUID userId) {
-        return ProjectMembershipEntity.findByUser(userId).stream()
-            .map(e -> new ProjectMembership(e.userId, e.projectId, MembershipRole.valueOf(e.role)))
-            .collect(Collectors.toList());
+    @Transactional
+    public void deleteById(Integer id) {
+        ProjectMembershipEntity.deleteById(id);
     }
 }

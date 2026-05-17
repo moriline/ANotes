@@ -1,8 +1,6 @@
 package com.taskmind.application.service;
 
-import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.model.User;
-import com.taskmind.domain.spi.MembershipRepository;
 import com.taskmind.domain.spi.UserRepository;
 import com.taskmind.infrastructure.security.BCryptUtil;
 import com.taskmind.infrastructure.security.JwtTokenProvider;
@@ -10,13 +8,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AuthService {
     @Inject UserRepository userRepo;
-    @Inject MembershipRepository membershipRepo;
     @Inject BCryptUtil bcrypt;
     @Inject JwtTokenProvider jwt;
 
@@ -31,11 +27,12 @@ public class AuthService {
 
     public String login(String username, String password) {
         var user = userRepo.findByUsername(username).orElseThrow(() -> new SecurityException("Invalid credentials"));
-        if (!bcrypt.verify(password, user.passwordHash())) throw new SecurityException("Invalid credentials");
-        return jwt.generateToken(user.id(), user.username(), user.roles().stream().map(Enum::name).collect(Collectors.toSet()));
+        if (!bcrypt.verify(password, user.password())) throw new SecurityException("Invalid credentials");
+        // For simplicity, we keep a default role, but in schema-v4 roles are in projectRoles table
+        return jwt.generateToken(user.id().toString(), user.username(), Set.of("USER"));
     }
 
-    public UUID getUserIdFromToken(String subject) {
-        return UUID.fromString(subject);
+    public Integer getUserIdFromToken(String subject) {
+        return Integer.parseInt(subject);
     }
 }

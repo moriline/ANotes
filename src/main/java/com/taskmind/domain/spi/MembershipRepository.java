@@ -2,11 +2,11 @@ package com.taskmind.domain.spi;
 
 import com.taskmind.domain.model.ProjectMembership;
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 
 public interface MembershipRepository {
-    void save(ProjectMembership membership);
-    boolean isOwner(UUID userId, UUID projectId);
-    boolean hasAccess(UUID userId, UUID projectId);
-    List<ProjectMembership> findByUser(UUID userId);
+    ProjectMembership save(ProjectMembership membership);
+    Optional<ProjectMembership> findByUserAndProject(Integer userId, Integer projectId);
+    List<ProjectMembership> findByUser(Integer userId);
+    void deleteById(Integer id);
 }
