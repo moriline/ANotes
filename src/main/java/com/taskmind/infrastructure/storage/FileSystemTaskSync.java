@@ -12,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @ApplicationScoped
-@Startup
 public class FileSystemTaskSync {
 
     private final ObjectMapper mapper;

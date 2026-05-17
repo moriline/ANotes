@@ -10,7 +10,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -19,7 +18,7 @@ public class RagTaskIndexer {
     @Inject EmbeddingStore<TextSegment> embeddingStore;
     @Inject Instance<EmbeddingModel> embeddingModelInstance;
 
-    public void indexTask(UUID taskId, UUID projectId, String content) {
+    public void indexTask(Integer taskId, Integer projectId, String content) {
         if (content == null || content.isBlank()) return;
         try {
             EmbeddingModel model = embeddingModelInstance.get();
@@ -32,7 +31,7 @@ public class RagTaskIndexer {
         }
     }
 
-    public List<String> searchTaskIds(UUID projectId, String query, int topK) {
+    public List<String> searchTaskIds(Integer projectId, String query, int topK) {
         try {
             EmbeddingModel model = embeddingModelInstance.get();
             Embedding queryEmbed = model.embed(query).content();

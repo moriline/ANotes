@@ -10,10 +10,10 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @Path("/config")
 public class ConfigResource {
 
-    @ConfigProperty(name = "quarkus.langchain4j.ollama.base-url")
+    @ConfigProperty(name = "quarkus.langchain4j.ollama.base-url", defaultValue = "http://localhost:11434")
     String ollamaUrl;
 
-    @ConfigProperty(name = "taskmind.projects.root")
+    @ConfigProperty(name = "taskmind.projects.root", defaultValue = "./projects")
     String projectsRoot;
 
     @GET

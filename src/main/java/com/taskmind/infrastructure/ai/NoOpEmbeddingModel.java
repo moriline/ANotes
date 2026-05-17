@@ -5,10 +5,14 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
+import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Alternative;
 import java.util.List;
 
 @ApplicationScoped
+@Alternative
+@Priority(1)
 public class NoOpEmbeddingModel implements EmbeddingModel {
 
     private static final Embedding ZERO = new Embedding(new float[768]);

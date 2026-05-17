@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @ApplicationScoped
-@Startup
 public class FileSystemProjectInitializer {
 
     @ConfigProperty(name = "taskmind.projects.root", defaultValue = "${user.dir}/projects")
