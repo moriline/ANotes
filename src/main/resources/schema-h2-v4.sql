@@ -163,14 +163,34 @@ CREATE TABLE activityLog (
     projectId INTEGER NOT NULL,
     taskId INTEGER,
     userId INTEGER,
-    actionType VARCHAR(50) NOT NULL, -- e.g., 'TASK_CREATED', 'STATUS_CHANGED', 'ASSIGNEE_UPDATED'
-    actionDetails VARCHAR(2000),     -- JSON with details
+    actionType VARCHAR(50) NOT NULL,
+    actionDetails VARCHAR(2000),
     createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
 
     FOREIGN KEY (projectId) REFERENCES projects(projectId) ON DELETE CASCADE,
     FOREIGN KEY (taskId) REFERENCES tasks(taskId) ON DELETE SET NULL,
     FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE SET NULL
 );
+
+-- ============================================================
+-- 10. TIME ENTRIES (Hybrid tracking)
+-- ============================================================
+CREATE TABLE timeEntries (
+    entryId INTEGER AUTO_INCREMENT PRIMARY KEY,
+    taskId INTEGER NOT NULL,
+    userId INTEGER NOT NULL,
+    seconds BIGINT NOT NULL,
+    description VARCHAR(500),
+    startTime BIGINT NOT NULL, -- Epoch ms
+    createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
+
+    FOREIGN KEY (taskId) REFERENCES tasks(taskId) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_timeEntries_task ON timeEntries(taskId);
+CREATE INDEX idx_timeEntries_user ON timeEntries(userId);
+CREATE INDEX idx_timeEntries_start ON timeEntries(startTime);
 
 -- ============================================================
 -- INDEXES (Оптимизация производительности)

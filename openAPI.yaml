@@ -1,0 +1,515 @@
+# TaskMind API Documentation (OpenAPI 3.0)
+
+Ниже представлено описание API в формате YAML, которое можно использовать для генерации Angular-клиента (например, через `openapi-generator-cli`).
+
+```yaml
+openapi: 3.0.3
+info:
+  title: TaskMind API
+  description: API для управления проектами и задачами (ANotes)
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth & User ---
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string }
+    
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        username: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+    
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: string }
+
+    # --- Project ---
+    ProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 50 }
+        description: { type: string }
+    
+    ProjectResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        ownerUserId: { type: integer }
+        color: { type: string }
+        icon: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # --- Task ---
+    TaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+    
+    TaskResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        creatorUserId: { type: integer }
+        assignedUserId: { type: integer }
+        statusId: { type: integer }
+        dueDate: { type: integer, format: int64 }
+        startDate: { type: integer, format: int64 }
+        estimatedHours: { type: number, format: double }
+        tags:
+          type: array
+          items: { type: string }
+        isArchived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # --- Project Status ---
+    ProjectStatusRequest:
+      type: object
+      required: [projectId, statusName]
+      properties:
+        projectId: { type: integer }
+        statusName: { type: string }
+        statusColor: { type: string }
+        statusOrder: { type: integer }
+        isDefault: { type: boolean }
+        isClosed: { type: boolean }
+    
+    ProjectStatusResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        statusName: { type: string }
+        statusColor: { type: string }
+        statusOrder: { type: integer }
+        isDefault: { type: boolean }
+        isClosed: { type: boolean }
+
+    # --- Search ---
+    FindTasksRequest:
+      type: object
+      properties:
+        projectId: { type: integer }
+        titleSearch: { type: string }
+        assignedUserId: { type: integer }
+        statusId: { type: integer }
+        isArchived: { type: boolean }
+    
+    FindTasksResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/TaskResponse' }
+
+    # --- Comment ---
+    CommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+    
+    CommentResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        userId: { type: integer }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        isEdited: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    # --- File ---
+    FileResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        projectId: { type: integer }
+        fileName: { type: string }
+        fileOriginalName: { type: string }
+        fileSize: { type: integer, format: int64 }
+        mimeType: { type: string }
+        fileUrl: { type: string }
+        uploadedByUserId: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    TimeEntryResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        userId: { type: integer }
+        seconds: { type: integer, format: int64 }
+        description: { type: string }
+        startTime: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+security:
+  - bearerAuth: []
+
+paths:
+  # === AUTH ===
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        200:
+          description: Успешная регистрация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Авторизация пользователя
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        200:
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  # === USERS ===
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Получить профиль текущего пользователя
+      responses:
+        200:
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+
+  # === PROJECTS ===
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: Список активных проектов
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectResponse' }
+    post:
+      tags: [Projects]
+      summary: Создать новый проект
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectResponse' }
+
+  /api/projects/{id}:
+    delete:
+      tags: [Projects]
+      summary: Удалить проект
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Удалено }
+
+  # === TASKS ===
+  /api/projects/{projectId}/tasks:
+    get:
+      tags: [Tasks]
+      summary: Список задач проекта
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskResponse' }
+    post:
+      tags: [Tasks]
+      summary: Создать задачу в проекте
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+
+  /api/projects/{projectId}/tasks/{taskId}:
+    delete:
+      tags: [Tasks]
+      summary: Удалить задачу
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Удалено }
+
+  # === PROJECT STATUSES ===
+  /api/project-statuses:
+    post:
+      tags: [Statuses]
+      summary: Добавить статус в проект
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectStatusRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectStatusResponse' }
+
+  /api/project-statuses/project/{projectId}:
+    get:
+      tags: [Statuses]
+      summary: Получить статусы конкретного проекта
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectStatusResponse' }
+
+  # === FIND / SEARCH ===
+  /api/find:
+    post:
+      tags: [Search]
+      summary: Расширенный поиск задач
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FindTasksRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FindTasksResponse' }
+
+  # === COMMENTS ===
+  /api/tasks/{taskId}/comments:
+    get:
+      tags: [Comments]
+      summary: Список комментариев к задаче
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CommentResponse' }
+    post:
+      tags: [Comments]
+      summary: Добавить комментарий
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+
+  /api/comments/{commentId}:
+    put:
+      tags: [Comments]
+      summary: Редактировать комментарий
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+    delete:
+      tags: [Comments]
+      summary: Удалить комментарий
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Удалено }
+
+  # === FILES ===
+  /api/files/projects/{projectId}/tasks/{taskId}:
+    post:
+      tags: [Files]
+      summary: Загрузить файл к задаче
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileResponse' }
+
+  /api/files/tasks/{taskId}:
+    get:
+      tags: [Files]
+      summary: Список файлов задачи
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FileResponse' }
+
+  /api/files/download/{fileName}:
+    get:
+      tags: [Files]
+      summary: Скачать файл
+      parameters:
+        - name: fileName
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Файл
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+
+  /api/files/{fileId}:
+    delete:
+      tags: [Files]
+      summary: Удалить файл
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Удалено }
+
+```
