@@ -52,10 +52,11 @@ CREATE TABLE projectRoles (
 );
 
 INSERT INTO projectRoles (roleName, description, permissions) VALUES
-('Admin', 'Полный доступ ко всем функциям проекта', '{"canCreate":true, "canEdit":true, "canDelete":true, "canComment":true, "canManageRoles":true}'),
-('Writer', 'Может создавать и изменять задачи', '{"canCreate":true, "canEdit":true, "canDelete":false, "canComment":true, "canManageRoles":false}'),
-('Reader', 'Только чтение и комментарии', '{"canCreate":false, "canEdit":false, "canDelete":false, "canComment":true, "canManageRoles":false}'),
-('Disabled', 'Доступ закрыт полностью', '{"canCreate":false, "canEdit":false, "canDelete":false, "canComment":false, "canManageRoles":false}');
+('Admin', 'Полный доступ ко всем функциям проекта', '["task:create","task:read","task:update","task:delete","task:assign","project:read","project:update","project:delete","project:manage_members","role:manage","user:manage"]'),
+('Manager', 'Управление задачами и участниками', '["task:create","task:read","task:update","task:delete","task:assign","project:read","project:manage_members"]'),
+('Developer', 'Разработка и работа с задачами', '["task:create","task:read","task:update","task:assign","project:read"]'),
+('Guest', 'Только чтение', '["task:read","project:read"]'),
+('Disabled', 'Доступ закрыт полностью', '[]');
 
 -- ============================================================
 -- 4. PROJECT MEMBERS
@@ -319,7 +320,7 @@ INSERT INTO projectMembers (projectId, userId, roleId, joinedAt) VALUES
 (1, 1, 1, EXTRACT(EPOCH FROM NOW()) * 1000), -- Admin
 (1, 2, 2, EXTRACT(EPOCH FROM NOW()) * 1000), -- Anna (Writer)
 (1, 3, 2, EXTRACT(EPOCH FROM NOW()) * 1000), -- Max (Writer)
-(1, 4, 3, EXTRACT(EPOCH FROM NOW()) * 1000); -- Olga (Reader)
+(1, 4, 4, EXTRACT(EPOCH FROM NOW()) * 1000); -- Olga (Guest)
 
 -- Project 2: Admin, Anna (Writer)
 INSERT INTO projectMembers (projectId, userId, roleId, joinedAt) VALUES

@@ -1,0 +1,34 @@
+# 1. Исправьте версию
+openapi: "3.0.3"
+
+# 2. Замените разрозненные enum на единый Action
+components:
+  schemas:
+    Action:
+      type: string
+      enum:
+        - task:create
+        - task:read
+        - task:update
+        - task:delete
+        - task:assign
+        - project:read
+        - project:create
+        - project:update
+        - project:delete
+        - project:manage_members
+        - user:manage
+        - role:manage
+
+# 3. Обновите PermissionCheckRequest
+    PermissionCheckRequest:
+      required: [userId, action]
+      properties:
+        action: { $ref: '#/components/schemas/Action' }  # ← было: enum inline
+
+# 4. Добавьте документацию иерархии (опционально, но полезно)
+x-role-hierarchy:
+  admin: [manager, developer, guest]
+  manager: [developer, guest]
+  developer: [guest]
+  guest: []

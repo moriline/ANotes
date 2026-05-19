@@ -1,0 +1,479 @@
+openapi: 3.0.3
+info:
+  title: TaskMind API
+  description: API для управления проектами, задачами и пользователями с AI-интеграцией
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # === ROLES & ENUMS ===
+    GlobalRole:
+      type: string
+      enum: [ADMIN, USER]
+      default: USER
+
+    ProjectRole:
+      type: string
+      enum: [OWNER, EDITOR, VIEWER]
+      default: VIEWER
+
+    TaskStatus:
+      type: string
+      enum: [TODO, IN_PROGRESS, DONE, BLOCKED]
+
+    # === AUTH & USERS ===
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        refreshToken: { type: string }
+        username: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: string }
+        globalRole: { $ref: '#/components/schemas/GlobalRole' }
+        createdAt: { type: string, format: date-time }
+
+    # === PROJECTS ===
+    ProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 50 }
+        description: { type: string }
+        color: { type: string }
+
+    ProjectResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        ownerUserId: { type: string, format: uuid }
+        color: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    ProjectMemberResponse:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        username: { type: string }
+        projectRole: { $ref: '#/components/schemas/ProjectRole' }
+        joinedAt: { type: string, format: date-time }
+
+    # === TASKS ===
+    TaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        assignedUserId: { type: string, format: uuid }
+        dueDate: { type: string, format: date-time }
+        tags:
+          type: array
+          items: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+
+    TaskResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        creatorUserId: { type: string, format: uuid }
+        assignedUserId: { type: string, format: uuid }
+        assignedUserName: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        dueDate: { type: string, format: date-time }
+        tags:
+          type: array
+          items: { type: string }
+        isArchived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # === COMMENTS ===
+    CommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+
+    CommentResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        username: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        isEdited: { type: boolean }
+
+    # === FILES ===
+    FileResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        fileSize: { type: integer, format: int64 }
+        mimeType: { type: string }
+        fileUrl: { type: string }
+        uploadedByUserId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+
+    # === PAGINATION ===
+    PaginationRequest:
+      type: object
+      properties:
+        page: { type: integer, default: 0 }
+        size: { type: integer, default: 20 }
+        sort: { type: string, default: "createdAt,desc" }
+
+security:
+  - bearerAuth: []
+
+paths:
+  # === AUTH ===
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        200:
+          description: Успешная регистрация + токен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Авторизация
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        200:
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление токена
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  # === USERS (Self) ===
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Мой профиль
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+    put:
+      tags: [Users]
+      summary: Обновить профиль
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserProfile' }
+      responses:
+        200: { description: Профиль обновлен }
+
+  # === ADMIN USERS (Requires ADMIN Role) ===
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Список всех пользователей (Admin)
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserProfile' }
+    delete:
+      tags: [Admin]
+      summary: Удалить пользователя (Admin)
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        204: { description: Пользователь удален }
+
+  /api/admin/users/{id}/role:
+    put:
+      tags: [Admin]
+      summary: Изменить роль пользователя (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/GlobalRole' }
+      responses:
+        200: { description: Роль изменена }
+
+  # === PROJECTS ===
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: Мои проекты
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectResponse' }
+    post:
+      tags: [Projects]
+      summary: Создать проект
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectResponse' }
+
+  /api/projects/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Projects]
+      summary: Удалить проект (Owner only)
+      responses:
+        204: { description: Проект удален }
+
+  /api/projects/{id}/members:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [ProjectMembers]
+      summary: Участники проекта
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectMemberResponse' }
+    post:
+      tags: [ProjectMembers]
+      summary: Добавить участника
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, projectRole]
+              properties:
+                userId: { type: string, format: uuid }
+                projectRole: { $ref: '#/components/schemas/ProjectRole' }
+      responses:
+        201: { description: Участник добавлен }
+
+  # === TASKS ===
+  /api/projects/{projectId}/tasks:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Tasks]
+      summary: Список задач с фильтрами
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TaskStatus' }
+        - name: assignedUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskResponse' }
+    post:
+      tags: [Tasks]
+      summary: Создать задачу
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+
+  /api/projects/{projectId}/tasks/{taskId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: taskId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Tasks]
+      summary: Удалить задачу
+      responses:
+        204: { description: Удалено }
+
+  # === COMMENTS ===
+  /api/tasks/{taskId}/comments:
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Comments]
+      summary: Комментарии задачи
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CommentResponse' }
+    post:
+      tags: [Comments]
+      summary: Добавить комментарий
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+
+  # === FILES ===
+  /api/files/projects/{projectId}/tasks/{taskId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: taskId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Files]
+      summary: Загрузить файл
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileResponse' }

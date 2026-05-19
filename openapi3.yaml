@@ -1,0 +1,403 @@
+openapi: 3.0.3
+info:
+  title: TaskMind API
+  description: |
+    Полная спецификация API для управления проектами и задачами (ANotes).
+    Особенности: Integer IDs, динамические статусы, гибридный трекинг времени и ролевая модель через БД.
+  version: 1.1.0
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth & User ---
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string }
+    
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        username: { type: string }
+    
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: string }
+        isActive: { type: boolean }
+
+    # --- Roles (Based on projectRoles table) ---
+    # Предложение: Роль — это объект с набором флагов-прав. 
+    # В БД хранится как JSON string в колонке permissions.
+    ProjectRole:
+      type: object
+      properties:
+        id: { type: integer }
+        roleName: { type: string }
+        description: { type: string }
+        permissions:
+          type: object
+          properties:
+            canCreate: { type: boolean }
+            canEdit: { type: boolean }
+            canDelete: { type: boolean }
+            canComment: { type: boolean }
+            canManageRoles: { type: boolean }
+
+    # --- Project ---
+    ProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 50 }
+        description: { type: string }
+        color: { type: string }
+        icon: { type: string }
+    
+    ProjectResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        ownerUserId: { type: integer }
+        color: { type: string }
+        icon: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+
+    # --- Project Status (Dynamic but with default values) ---
+    ProjectStatusResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        statusName: { type: string, enum: [TODO, IN_PROGRESS, DONE, ARCHIVED] }
+        statusColor: { type: string }
+        statusOrder: { type: integer }
+        isDefault: { type: boolean }
+        isClosed: { type: boolean }
+
+    # --- Task ---
+    TaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        assignedUserId: { type: integer }
+        statusId: { type: integer }
+        dueDate: { type: integer, format: int64 }
+        tags:
+          type: array
+          items: { type: string }
+    
+    TaskResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        creatorUserId: { type: integer }
+        assignedUserId: { type: integer }
+        statusId: { type: integer }
+        dueDate: { type: integer, format: int64 }
+        totalSeconds: { type: integer, format: int64 }
+        tags:
+          type: array
+          items: { type: string }
+        isArchived: { type: boolean }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+
+    # --- Time Tracking ---
+    TimeEntryRequest:
+      type: object
+      required: [seconds]
+      properties:
+        seconds: { type: integer, format: int64 }
+        description: { type: string }
+        startTime: { type: integer, format: int64 }
+
+    TimeEntryResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        userId: { type: integer }
+        seconds: { type: integer, format: int64 }
+        description: { type: string }
+        startTime: { type: integer, format: int64 }
+        createdAt: { type: integer, format: int64 }
+
+    # --- Search ---
+    FindTasksRequest:
+      type: object
+      properties:
+        projectId: { type: integer }
+        assignedUserId: { type: integer }
+        statusId: { type: integer }
+        titleSearch: { type: string }
+        isArchived: { type: boolean }
+
+    # --- Comment ---
+    CommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+    
+    CommentResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        userId: { type: integer }
+        content: { type: string }
+        createdAt: { type: integer, format: int64 }
+        isEdited: { type: boolean }
+
+security:
+  - bearerAuth: []
+
+paths:
+  # === AUTH ===
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  # === ADMIN (Extended Management) ===
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Список всех пользователей
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserProfile' }
+  /api/admin/users/{id}:
+    delete:
+      tags: [Admin]
+      summary: Удалить пользователя
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Deleted }
+  /api/admin/users/{id}/status:
+    put:
+      tags: [Admin]
+      summary: Изменить статус (активен/заблокирован)
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { isActive: { type: boolean } } }
+      responses:
+        200: { description: Updated }
+
+  # === PROJECTS ===
+  /api/projects:
+    get:
+      tags: [Projects]
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectResponse' }
+    post:
+      tags: [Projects]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectResponse' }
+
+  # === TASKS ===
+  /api/projects/{projectId}/tasks:
+    get:
+      tags: [Tasks]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskResponse' }
+
+  # === SEARCH ===
+  /api/find:
+    post:
+      tags: [Search]
+      summary: Расширенный поиск задач
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FindTasksRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskResponse' }
+
+  # === TIME TRACKING ===
+  /api/tasks/{taskId}/time:
+    post:
+      tags: [TimeTracking]
+      summary: Залогировать время
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TimeEntryRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeEntryResponse' }
+    get:
+      tags: [TimeTracking]
+      summary: Получить все записи времени задачи
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TimeEntryResponse' }
+
+  /api/time-entries/{entryId}:
+    delete:
+      tags: [TimeTracking]
+      summary: Удалить запись времени
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Deleted }
+
+  # === COMMENTS ===
+  /api/tasks/{taskId}/comments:
+    post:
+      tags: [Comments]
+      summary: Добавить комментарий
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentRequest' }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+
+  /api/comments/{commentId}:
+    put:
+      tags: [Comments]
+      summary: Редактировать комментарий
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentRequest' }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+    delete:
+      tags: [Comments]
+      summary: Удалить комментарий
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204: { description: Deleted }
