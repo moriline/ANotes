@@ -14,7 +14,6 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import java.util.List;
 
-@Path("/api")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @RolesAllowed("USER")
@@ -24,7 +23,7 @@ public class CommentResource {
     @Inject AuthService authService;
 
     @POST
-    @Path("/tasks/{taskId}/comments")
+    @Path("/api/tasks/{taskId}/comments")
     public Response addComment(@PathParam("taskId") Integer taskId, @Valid CommentRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
         var comment = commentService.addComment(taskId, userId, req.content());
@@ -32,20 +31,20 @@ public class CommentResource {
     }
 
     @GET
-    @Path("/tasks/{taskId}/comments")
+    @Path("/api/tasks/{taskId}/comments")
     public List<CommentResponse> getComments(@PathParam("taskId") Integer taskId) {
         return commentService.getCommentsByTask(taskId);
     }
 
     @PUT
-    @Path("/comments/{commentId}")
+    @Path("/api/comments/{commentId}")
     public CommentResponse updateComment(@PathParam("commentId") Integer commentId, @Valid CommentRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
         return commentService.updateComment(commentId, userId, req.content());
     }
 
     @DELETE
-    @Path("/comments/{commentId}")
+    @Path("/api/comments/{commentId}")
     public Response deleteComment(@PathParam("commentId") Integer commentId, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
         commentService.deleteComment(commentId, userId);
