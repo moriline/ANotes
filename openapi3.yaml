@@ -355,6 +355,21 @@ paths:
 
   # === COMMENTS ===
   /api/tasks/{taskId}/comments:
+    get:
+      tags: [Comments]
+      summary: Получить список комментариев
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CommentResponse' }
     post:
       tags: [Comments]
       summary: Добавить комментарий
