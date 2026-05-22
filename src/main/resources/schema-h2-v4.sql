@@ -107,6 +107,8 @@ CREATE TABLE tasks (
 
     -- Metadata
     tags VARCHAR(1000), -- JSON Array: ["bug", "urgent", "frontend"]
+    discussion TEXT,    -- JSON Array: Discussion blocks
+    summary TEXT,       -- Decision/Summary
     -- priority INTEGER DEFAULT 0, -- 0: None, 1: Low, 2: Medium, 3: High, 4: Critical
 
     isArchived BOOLEAN DEFAULT FALSE,

@@ -16,6 +16,8 @@ public record Task(
     Double estimatedHours,
     List<String> tags,
     boolean isArchived,
+    List<DiscussionBlock> discussion,
+    String summary,
     Instant createdAt,
     Instant updatedAt
 ) {
@@ -33,6 +35,8 @@ public record Task(
             null,
             List.of(),
             false,
+            List.of(),
+            null,
             Instant.now(),
             Instant.now()
         );

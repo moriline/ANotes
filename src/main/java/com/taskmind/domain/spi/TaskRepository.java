@@ -9,4 +9,5 @@ public interface TaskRepository {
     Optional<Task> findById(Integer id);
     List<Task> findByProject(Integer projectId);
     void deleteById(Integer id);
+    List<Task> findByDiscussionContent(String query);
 }

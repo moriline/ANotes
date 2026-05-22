@@ -31,6 +31,8 @@ public class TaskService {
             null,
             tags != null ? tags : List.of(),
             false,
+            List.of(),
+            null,
             Instant.now(),
             Instant.now()
         );

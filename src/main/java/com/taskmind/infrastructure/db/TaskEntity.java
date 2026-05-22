@@ -1,5 +1,6 @@
 package com.taskmind.infrastructure.db;
 
+import com.taskmind.domain.model.DiscussionBlock;
 import com.taskmind.domain.model.Task;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
@@ -37,6 +38,13 @@ public class TaskEntity extends PanacheEntityBase {
     public Double estimatedHours;
 
     public String tags; // JSON Array as String
+
+    @Convert(converter = DiscussionListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    public List<DiscussionBlock> discussion;
+
+    @Column(columnDefinition = "TEXT")
+    public String summary;
 
     public boolean isArchived;
 
@@ -76,6 +84,8 @@ public class TaskEntity extends PanacheEntityBase {
             estimatedHours,
             tagsList,
             isArchived,
+            discussion != null ? discussion : List.of(),
+            summary,
             createdAt != null ? Instant.ofEpochMilli(createdAt) : null,
             updatedAt != null ? Instant.ofEpochMilli(updatedAt) : null
         );
@@ -96,6 +106,9 @@ public class TaskEntity extends PanacheEntityBase {
         e.tags = t.tags() == null || t.tags().isEmpty() 
             ? "[]" 
             : "[\"" + String.join("\",\"", t.tags()) + "\"]";
+        
+        e.discussion = t.discussion();
+        e.summary = t.summary();
         e.isArchived = t.isArchived();
         e.createdAt = t.createdAt() != null ? t.createdAt().toEpochMilli() : null;
         e.updatedAt = t.updatedAt() != null ? t.updatedAt().toEpochMilli() : null;
