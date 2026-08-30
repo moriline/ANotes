@@ -1,25 +1,31 @@
 package com.taskmind.api.rest;
 
-import com.taskmind.application.service.TaskService;
-import com.taskmind.domain.model.TimeEntry;
-import io.restassured.RestAssured;
-import io.restassured.http.ContentType;
+import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
 public class TimeEntryResourceTest {
 
+    @Inject TestDataCleanup cleanup;
+
+    /** Тест проверяет точную сумму по задаче 1, поэтому ему нужна пустая таблица timeEntries. */
+    @BeforeEach
+    void resetData() {
+        cleanup.clearAll();
+    }
+
     @Test
     public void shouldLogTimeAndGetTotalTime() {
-        String token = TestAuthHelper.registerAndLogin("user", "user@test.com", "password");
-        
-        // Assume task with ID 1 exists
+        String token = TestAuthHelper.registerAndLogin("time_user", "time_user@test.com", "password");
+
+        // Задача с ID 1 приходит из сида
         Map<String, Object> logBody = Map.of(
             "userId", 1,
             "seconds", 3600,

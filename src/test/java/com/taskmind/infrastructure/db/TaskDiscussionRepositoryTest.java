@@ -1,10 +1,12 @@
 package com.taskmind.infrastructure.db;
 
+import com.taskmind.TestDataCleanup;
 import com.taskmind.domain.model.BlockType;
 import com.taskmind.domain.model.DiscussionBlock;
 import com.taskmind.domain.model.Task;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -18,6 +20,19 @@ public class TaskDiscussionRepositoryTest {
 
     @Inject
     H2TaskRepository repository;
+
+    @Inject
+    TestDataCleanup cleanup;
+
+    /**
+     * Тест вставляет задачи напрямую в projectId=1 с creatorUserId=1, поэтому эти
+     * записи должны существовать. Заодно сброс изолирует методы друг от друга:
+     * поиск по обсуждениям проверяет точные размеры выборок.
+     */
+    @BeforeEach
+    void resetData() {
+        cleanup.clearAll();
+    }
 
     @Test
     public void shouldSaveAndLoadTaskWithFiveDiscussionBlocks() {

@@ -1,17 +1,29 @@
 package com.taskmind.api.rest;
 
+import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
 public class AdminUserResourceTest {
 
+    @Inject TestDataCleanup cleanup;
+
+    /**
+     * Тест блокирует пользователя 4 и удаляет пользователя 2 из сида. Без сброса
+     * это ломало RoleIntegrationTest, если тот запускался следом.
+     */
+    @BeforeEach
+    void resetData() {
+        cleanup.clearAll();
+    }
+
     @Test
     public void testAdminManagement() {
-        // Use registerAndLogin for admin user
-        String token = TestAuthHelper.registerAndLogin("admin_tester", "admin_tester@test.com", "password");
+        String token = TestAuthHelper.registerAndLogin("admin_mgmt_tester", "admin_mgmt@test.com", "password");
 
         // 1. Получение списка пользователей
         TestAuthHelper.authenticated(token)
