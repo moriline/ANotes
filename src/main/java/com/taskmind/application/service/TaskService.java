@@ -15,9 +15,16 @@ public class TaskService {
 
     @Inject TaskRepository repository;
     @Inject H2TimeEntryRepository timeEntryRepository;
+    @Inject ProjectStatusService projectStatusService;
 
     @Transactional
     public Task createTask(Integer projectId, String title, String description, List<String> tags, Integer creatorUserId) {
+        // Новая задача встаёт в первую колонку доски проекта; null остаётся только
+        // у проектов, созданных до появления статусов по умолчанию.
+        Integer statusId = projectStatusService.findDefaultStatus(projectId)
+            .map(status -> status.id)
+            .orElse(null);
+
         var task = new Task(
             null,
             projectId,
@@ -25,7 +32,7 @@ public class TaskService {
             description,
             creatorUserId,
             null,
-            null,
+            statusId,
             null,
             null,
             null,

@@ -2,9 +2,9 @@ package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.ProjectStatusRequest;
 import com.taskmind.api.dto.ProjectStatusResponse;
-import com.taskmind.infrastructure.db.ProjectStatusEntity;
+import com.taskmind.application.service.ProjectStatusService;
 import jakarta.annotation.security.RolesAllowed;
-import jakarta.transaction.Transactional;
+import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -17,24 +17,19 @@ import java.util.List;
 @RolesAllowed("USER")
 public class ProjectStatusResource {
 
+    @Inject ProjectStatusService service;
+
     @POST
-    @Transactional
     public Response create(@Valid ProjectStatusRequest req) {
-        var entity = new ProjectStatusEntity();
-        entity.projectId = req.projectId();
-        entity.statusName = req.statusName();
-        entity.statusColor = req.statusColor();
-        entity.statusOrder = req.statusOrder();
-        entity.isDefault = req.isDefault();
-        entity.isClosed = req.isClosed();
-        entity.persist();
+        var entity = service.create(req.projectId(), req.statusName(), req.statusColor(),
+            req.statusOrder(), req.isDefault(), req.isClosed());
         return Response.status(Response.Status.CREATED).entity(ProjectStatusResponse.fromEntity(entity)).build();
     }
 
     @GET
     @Path("/project/{projectId}")
     public List<ProjectStatusResponse> listByProject(@PathParam("projectId") Integer projectId) {
-        return ProjectStatusEntity.<ProjectStatusEntity>list("projectId", projectId).stream()
+        return service.listByProject(projectId).stream()
             .map(ProjectStatusResponse::fromEntity)
             .toList();
     }

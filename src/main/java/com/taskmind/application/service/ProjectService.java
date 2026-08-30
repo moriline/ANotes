@@ -11,6 +11,7 @@ import java.util.List;
 public class ProjectService {
 
     @Inject ProjectRepository repository;
+    @Inject ProjectStatusService projectStatusService;
 
     @Transactional
     public Project createProject(String name, String description, Integer ownerUserId) {
@@ -19,7 +20,12 @@ public class ProjectService {
         }
 
         var project = Project.create(name, description, ownerUserId);
-        return repository.save(project);
+        var saved = repository.save(project);
+
+        // Без доски по умолчанию задачам проекта было бы некуда вставать.
+        projectStatusService.createDefaults(saved.id());
+
+        return saved;
     }
 
     public List<Project> listActiveProjects() {
