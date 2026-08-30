@@ -12,6 +12,7 @@ public class ProjectService {
 
     @Inject ProjectRepository repository;
     @Inject ProjectStatusService projectStatusService;
+    @Inject ProjectAccessService projectAccessService;
 
     @Transactional
     public Project createProject(String name, String description, Integer ownerUserId) {
@@ -28,8 +29,16 @@ public class ProjectService {
         return saved;
     }
 
-    public List<Project> listActiveProjects() {
-        return repository.findAllActive();
+    /**
+     * Активные проекты, доступные пользователю: свои плюс те, где он участник.
+     * Прежний вариант возвращал findAllActive() без всяких проверок, то есть
+     * любой залогиненный видел проекты всех остальных.
+     */
+    public List<Project> listAccessibleProjects(Integer userId) {
+        var accessible = projectAccessService.accessibleProjectIds(userId);
+        return repository.findAllActive().stream()
+            .filter(project -> accessible.contains(project.id()))
+            .toList();
     }
 
     @Transactional

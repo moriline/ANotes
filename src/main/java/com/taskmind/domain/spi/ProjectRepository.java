@@ -9,5 +9,6 @@ public interface ProjectRepository {
     Optional<Project> findById(Integer id);
     Optional<Project> findByName(String name);
     List<Project> findAllActive();
+    List<Project> findByOwner(Integer ownerUserId);
     void deleteById(Integer id);
 }

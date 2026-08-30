@@ -42,6 +42,12 @@ public class H2ProjectRepository implements ProjectRepository {
     }
 
     @Override
+    public List<Project> findByOwner(Integer ownerUserId) {
+        return ProjectEntity.<ProjectEntity>list("ownerUserId", ownerUserId)
+            .stream().map(ProjectEntity::toDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public void deleteById(Integer id) {
         ProjectEntity.deleteById(id);

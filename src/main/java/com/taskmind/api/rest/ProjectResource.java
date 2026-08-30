@@ -31,8 +31,9 @@ public class ProjectResource {
     }
 
     @GET
-    public List<ProjectResponse> list() {
-        return service.listActiveProjects().stream()
+    public List<ProjectResponse> list(@Context SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+        return service.listAccessibleProjects(userId).stream()
             .map(ProjectResponse::fromDomain)
             .toList();
     }

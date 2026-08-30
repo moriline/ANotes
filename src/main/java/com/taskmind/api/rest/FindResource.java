@@ -3,8 +3,7 @@ package com.taskmind.api.rest;
 import com.taskmind.api.dto.FindTasksRequest;
 import com.taskmind.api.dto.TaskResponse;
 import com.taskmind.application.service.AuthService;
-import com.taskmind.domain.spi.MembershipRepository;
-import com.taskmind.infrastructure.db.ProjectEntity;
+import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.infrastructure.db.TaskEntity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -14,7 +13,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.SecurityContext;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,13 +31,13 @@ import java.util.stream.Collectors;
 public class FindResource {
 
     @Inject AuthService authService;
-    @Inject MembershipRepository membershipRepository;
+    @Inject ProjectAccessService projectAccessService;
 
     @POST
     public ResponseWrapper find(FindTasksRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
 
-        Set<Integer> accessibleProjectIds = accessibleProjectIds(userId);
+        Set<Integer> accessibleProjectIds = projectAccessService.accessibleProjectIds(userId);
         if (accessibleProjectIds.isEmpty()) {
             return new ResponseWrapper(List.of());
         }
@@ -81,13 +79,6 @@ public class FindResource {
             .collect(Collectors.toList());
 
         return new ResponseWrapper(responses);
-    }
-
-    private Set<Integer> accessibleProjectIds(Integer userId) {
-        Set<Integer> ids = new HashSet<>();
-        ProjectEntity.<ProjectEntity>list("ownerUserId", userId).forEach(p -> ids.add(p.id));
-        membershipRepository.findByUser(userId).forEach(m -> ids.add(m.projectId()));
-        return ids;
     }
 
     public static record ResponseWrapper(List<TaskResponse> tasks) {}
