@@ -8,5 +8,6 @@ public interface MembershipRepository {
     ProjectMembership save(ProjectMembership membership);
     Optional<ProjectMembership> findByUserAndProject(Integer userId, Integer projectId);
     List<ProjectMembership> findByUser(Integer userId);
+    List<ProjectMembership> findByProject(Integer projectId);
     void deleteById(Integer id);
 }

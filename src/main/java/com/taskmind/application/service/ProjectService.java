@@ -13,6 +13,7 @@ public class ProjectService {
     @Inject ProjectRepository repository;
     @Inject ProjectStatusService projectStatusService;
     @Inject ProjectAccessService projectAccessService;
+    @Inject MembershipService membershipService;
 
     @Transactional
     public Project createProject(String name, String description, Integer ownerUserId) {
@@ -25,6 +26,10 @@ public class ProjectService {
 
         // Без доски по умолчанию задачам проекта было бы некуда вставать.
         projectStatusService.createDefaults(saved.id());
+
+        // Создатель раньше не попадал в projectMembers: формально он не был
+        // участником собственного проекта, и роль ему выдать было нечем.
+        membershipService.addMember(saved.id(), ownerUserId, MembershipService.ROLE_ADMIN);
 
         return saved;
     }

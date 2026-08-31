@@ -39,6 +39,14 @@ public class H2MembershipRepository implements MembershipRepository {
     }
 
     @Override
+    public List<ProjectMembership> findByProject(Integer projectId) {
+        return ProjectMembershipEntity.list("projectId", projectId)
+                .stream()
+                .map(e -> ((ProjectMembershipEntity) e).toDomainModel())
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public void deleteById(Integer id) {
         ProjectMembershipEntity.deleteById(id);
