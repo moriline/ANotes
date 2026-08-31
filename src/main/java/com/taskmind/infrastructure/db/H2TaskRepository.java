@@ -2,8 +2,10 @@ package com.taskmind.infrastructure.db;
 
 import com.taskmind.domain.model.Task;
 import com.taskmind.domain.spi.TaskRepository;
+import com.taskmind.domain.spi.TaskSearchCriteria;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -73,6 +75,7 @@ public class H2TaskRepository implements TaskRepository {
                 .collect(Collectors.toList());
     }
 
+    @Override
     @Transactional
     public void updateDiscussion(Integer taskId, List<com.taskmind.domain.model.DiscussionBlock> discussion) {
         TaskEntity entity = TaskEntity.findById(taskId);
@@ -82,6 +85,7 @@ public class H2TaskRepository implements TaskRepository {
         }
     }
 
+    @Override
     @Transactional
     public void updateSummary(Integer taskId, String summary) {
         TaskEntity entity = TaskEntity.findById(taskId);
@@ -89,5 +93,55 @@ public class H2TaskRepository implements TaskRepository {
             entity.summary = summary;
             entity.updatedAt = java.time.Instant.now().toEpochMilli();
         }
+    }
+
+    /**
+     * Поиск нативным SQL, а не через Panache/JPQL: {@code discussion} отображён на
+     * {@code List<DiscussionBlock>} через конвертер, и LIKE по нему из JPQL не
+     * работает — параметр попытались бы прогнать через тот же конвертер.
+     */
+    @Override
+    public List<Task> search(TaskSearchCriteria criteria) {
+        if (criteria.projectIds() == null || criteria.projectIds().isEmpty()) {
+            return List.of();
+        }
+
+        var sql = new StringBuilder("SELECT * FROM tasks WHERE projectId IN (:projectIds)");
+        var params = new HashMap<String, Object>();
+        params.put("projectIds", criteria.projectIds());
+
+        if (isFilled(criteria.titleSearch())) {
+            sql.append(" AND title LIKE :title");
+            params.put("title", "%" + criteria.titleSearch() + "%");
+        }
+        if (isFilled(criteria.contentSearch())) {
+            // Весь текст задачи разом. По discussion идёт LIKE по сырому JSON, поэтому
+            // сюда же попадают имена авторов и названия типов блоков.
+            sql.append(" AND (LOWER(title) LIKE :content OR LOWER(description) LIKE :content")
+               .append(" OR LOWER(summary) LIKE :content OR LOWER(discussion) LIKE :content)");
+            params.put("content", "%" + criteria.contentSearch().toLowerCase() + "%");
+        }
+        if (criteria.assignedUserId() != null) {
+            sql.append(" AND assignedUserId = :assignedUserId");
+            params.put("assignedUserId", criteria.assignedUserId());
+        }
+        if (criteria.statusId() != null) {
+            sql.append(" AND statusId = :statusId");
+            params.put("statusId", criteria.statusId());
+        }
+        if (criteria.isArchived() != null) {
+            sql.append(" AND isArchived = :isArchived");
+            params.put("isArchived", criteria.isArchived());
+        }
+
+        var query = TaskEntity.getEntityManager().createNativeQuery(sql.toString(), TaskEntity.class);
+        params.forEach(query::setParameter);
+
+        List<TaskEntity> rows = query.getResultList();
+        return rows.stream().map(TaskEntity::toDomainModel).collect(Collectors.toList());
+    }
+
+    private static boolean isFilled(String value) {
+        return value != null && !value.isBlank();
     }
 }

@@ -9,6 +9,8 @@ public record TaskResponse(
     Integer projectId,
     String title,
     String description,
+    // Итог по задаче: сюда пишется вывод, полученный при её решении.
+    String summary,
     Integer creatorUserId,
     Integer assignedUserId,
     Integer statusId,
@@ -22,17 +24,18 @@ public record TaskResponse(
 ) {
     public static TaskResponse from(Task t) {
         return new TaskResponse(
-            t.id(), 
-            t.projectId(), 
-            t.title(), 
+            t.id(),
+            t.projectId(),
+            t.title(),
             t.description(),
+            t.summary(),
             t.creatorUserId(),
             t.assignedUserId(),
             t.statusId(),
             t.dueDate(),
             t.startDate(),
             t.estimatedHours(),
-            t.tags(), 
+            t.tags(),
             t.isArchived(),
             t.createdAt(),
             t.updatedAt()

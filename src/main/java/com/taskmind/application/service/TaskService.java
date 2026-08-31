@@ -1,13 +1,16 @@
 package com.taskmind.application.service;
 
 import com.taskmind.api.dto.TaskUpdateRequest;
+import com.taskmind.domain.model.DiscussionBlock;
 import com.taskmind.domain.model.Task;
 import com.taskmind.domain.model.TimeEntry;
 import com.taskmind.domain.spi.TaskRepository;
+import com.taskmind.domain.spi.TaskSearchCriteria;
 import com.taskmind.infrastructure.db.H2TimeEntryRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
@@ -82,6 +85,36 @@ public class TaskService {
             Instant.now()
         );
         return repository.save(updated);
+    }
+
+    public List<Task> search(TaskSearchCriteria criteria) {
+        return repository.search(criteria);
+    }
+
+    /**
+     * Записывает итог по задаче — то место, куда модель кладёт результат, решив
+     * задачу. Пустая строка стирает прежний итог.
+     */
+    @Transactional
+    public Task setSummary(Integer taskId, String summary) {
+        repository.updateSummary(taskId, summary);
+        return repository.findById(taskId).orElseThrow();
+    }
+
+    /**
+     * Добавляет блок в конец обсуждения задачи.
+     *
+     * <p>Обсуждение лежит одним JSON-полем, поэтому это чтение-изменение-запись:
+     * два одновременных добавления в одну задачу могут затереть друг друга.
+     * Для потока «агент дописывает свои выводы» этого достаточно, для настоящей
+     * многопользовательской нагрузки блоки нужно вынести в отдельную таблицу.
+     */
+    @Transactional
+    public Task addDiscussionBlock(Task task, DiscussionBlock block) {
+        var blocks = new ArrayList<>(task.discussion());
+        blocks.add(block);
+        repository.updateDiscussion(task.id(), blocks);
+        return repository.findById(task.id()).orElseThrow();
     }
 
     @Transactional
