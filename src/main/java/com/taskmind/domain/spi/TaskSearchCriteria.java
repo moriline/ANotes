@@ -3,7 +3,7 @@ package com.taskmind.domain.spi;
 import java.util.Collection;
 
 /**
- * Условия поиска задач. Все поля, кроме {@code projectIds}, необязательны:
+ * Условия поиска задач. Все поля фильтра, кроме {@code projectIds}, необязательны:
  * {@code null} означает «не фильтровать по этому признаку». Заданные условия
  * складываются по И.
  *
@@ -14,6 +14,10 @@ import java.util.Collection;
  * @param assignedUserId исполнитель
  * @param statusId       статус
  * @param isArchived     архивная или нет
+ * @param sortField      поле сортировки
+ * @param sortDirection  направление сортировки
+ * @param limit          сколько записей вернуть
+ * @param offset         сколько записей пропустить
  */
 public record TaskSearchCriteria(
     Collection<Integer> projectIds,
@@ -21,5 +25,9 @@ public record TaskSearchCriteria(
     String contentSearch,
     Integer assignedUserId,
     Integer statusId,
-    Boolean isArchived
+    Boolean isArchived,
+    TaskSortField sortField,
+    SortDirection sortDirection,
+    int limit,
+    int offset
 ) {}

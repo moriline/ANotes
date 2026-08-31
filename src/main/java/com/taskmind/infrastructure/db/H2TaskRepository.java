@@ -1,12 +1,15 @@
 package com.taskmind.infrastructure.db;
 
 import com.taskmind.domain.model.Task;
+import com.taskmind.domain.spi.SortDirection;
 import com.taskmind.domain.spi.TaskRepository;
 import com.taskmind.domain.spi.TaskSearchCriteria;
+import com.taskmind.domain.spi.TaskSortField;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -106,39 +109,76 @@ public class H2TaskRepository implements TaskRepository {
             return List.of();
         }
 
-        var sql = new StringBuilder("SELECT * FROM tasks WHERE projectId IN (:projectIds)");
         var params = new HashMap<String, Object>();
+        String where = buildWhere(criteria, params);
+
+        // taskId в конце — устойчивый порядок: без него страницы «плывут», когда у
+        // задач совпадает время изменения.
+        String sql = "SELECT * FROM tasks WHERE " + where
+            + " ORDER BY " + sortField(criteria).column() + " " + sortDirection(criteria).name()
+            + ", taskId DESC";
+
+        var query = TaskEntity.getEntityManager().createNativeQuery(sql, TaskEntity.class);
+        params.forEach(query::setParameter);
+        query.setFirstResult(criteria.offset());
+        query.setMaxResults(criteria.limit());
+
+        List<TaskEntity> rows = query.getResultList();
+        return rows.stream().map(TaskEntity::toDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
+    public long count(TaskSearchCriteria criteria) {
+        if (criteria.projectIds() == null || criteria.projectIds().isEmpty()) {
+            return 0;
+        }
+
+        var params = new HashMap<String, Object>();
+        String where = buildWhere(criteria, params);
+
+        var query = TaskEntity.getEntityManager()
+            .createNativeQuery("SELECT COUNT(*) FROM tasks WHERE " + where);
+        params.forEach(query::setParameter);
+
+        return ((Number) query.getSingleResult()).longValue();
+    }
+
+    private String buildWhere(TaskSearchCriteria criteria, Map<String, Object> params) {
+        var where = new StringBuilder("projectId IN (:projectIds)");
         params.put("projectIds", criteria.projectIds());
 
         if (isFilled(criteria.titleSearch())) {
-            sql.append(" AND title LIKE :title");
+            where.append(" AND title LIKE :title");
             params.put("title", "%" + criteria.titleSearch() + "%");
         }
         if (isFilled(criteria.contentSearch())) {
             // Весь текст задачи разом. По discussion идёт LIKE по сырому JSON, поэтому
             // сюда же попадают имена авторов и названия типов блоков.
-            sql.append(" AND (LOWER(title) LIKE :content OR LOWER(description) LIKE :content")
-               .append(" OR LOWER(summary) LIKE :content OR LOWER(discussion) LIKE :content)");
+            where.append(" AND (LOWER(title) LIKE :content OR LOWER(description) LIKE :content")
+                 .append(" OR LOWER(summary) LIKE :content OR LOWER(discussion) LIKE :content)");
             params.put("content", "%" + criteria.contentSearch().toLowerCase() + "%");
         }
         if (criteria.assignedUserId() != null) {
-            sql.append(" AND assignedUserId = :assignedUserId");
+            where.append(" AND assignedUserId = :assignedUserId");
             params.put("assignedUserId", criteria.assignedUserId());
         }
         if (criteria.statusId() != null) {
-            sql.append(" AND statusId = :statusId");
+            where.append(" AND statusId = :statusId");
             params.put("statusId", criteria.statusId());
         }
         if (criteria.isArchived() != null) {
-            sql.append(" AND isArchived = :isArchived");
+            where.append(" AND isArchived = :isArchived");
             params.put("isArchived", criteria.isArchived());
         }
+        return where.toString();
+    }
 
-        var query = TaskEntity.getEntityManager().createNativeQuery(sql.toString(), TaskEntity.class);
-        params.forEach(query::setParameter);
+    private static TaskSortField sortField(TaskSearchCriteria criteria) {
+        return criteria.sortField() != null ? criteria.sortField() : TaskSortField.UPDATED_AT;
+    }
 
-        List<TaskEntity> rows = query.getResultList();
-        return rows.stream().map(TaskEntity::toDomainModel).collect(Collectors.toList());
+    private static SortDirection sortDirection(TaskSearchCriteria criteria) {
+        return criteria.sortDirection() != null ? criteria.sortDirection() : SortDirection.DESC;
     }
 
     private static boolean isFilled(String value) {

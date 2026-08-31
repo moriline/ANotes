@@ -139,6 +139,10 @@ public class TaskService {
         return repository.search(criteria);
     }
 
+    public long countMatching(TaskSearchCriteria criteria) {
+        return repository.count(criteria);
+    }
+
     /**
      * Записывает итог по задаче — то место, куда модель кладёт результат, решив
      * задачу. Пустая строка стирает прежний итог.

@@ -14,4 +14,16 @@ public class FindTasksRequest {
     public Integer assignedUserId;
     public Integer statusId;
     public Boolean isArchived;
+
+    /** Поле сортировки: createdAt, updatedAt, dueDate или title. По умолчанию updatedAt. */
+    public String sortBy;
+
+    /** asc или desc. По умолчанию desc. */
+    public String sortDir;
+
+    /** Размер страницы: по умолчанию 50, максимум 200. */
+    public Integer limit;
+
+    /** Сколько записей пропустить. По умолчанию 0. */
+    public Integer offset;
 }

@@ -5,7 +5,9 @@ import com.taskmind.api.dto.TaskResponse;
 import com.taskmind.application.service.AuthService;
 import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.application.service.TaskService;
+import com.taskmind.domain.spi.SortDirection;
 import com.taskmind.domain.spi.TaskSearchCriteria;
+import com.taskmind.domain.spi.TaskSortField;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -31,6 +33,9 @@ import java.util.Set;
 @RolesAllowed("USER")
 public class FindResource {
 
+    private static final int DEFAULT_LIMIT = 50;
+    private static final int MAX_LIMIT = 200;
+
     @Inject AuthService authService;
     @Inject ProjectAccessService projectAccessService;
     @Inject TaskService taskService;
@@ -39,15 +44,18 @@ public class FindResource {
     public ResponseWrapper find(FindTasksRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
 
+        int limit = PagingParams.limit(req.limit, DEFAULT_LIMIT, MAX_LIMIT);
+        int offset = PagingParams.offset(req.offset);
+
         Set<Integer> accessibleProjectIds = projectAccessService.accessibleProjectIds(userId);
         if (accessibleProjectIds.isEmpty()) {
-            return new ResponseWrapper(List.of());
+            return ResponseWrapper.empty(limit, offset);
         }
 
         Collection<Integer> scope;
         if (req.projectId != null) {
             if (!accessibleProjectIds.contains(req.projectId)) {
-                return new ResponseWrapper(List.of());
+                return ResponseWrapper.empty(limit, offset);
             }
             scope = List.of(req.projectId);
         } else {
@@ -60,15 +68,49 @@ public class FindResource {
             req.contentSearch,
             req.assignedUserId,
             req.statusId,
-            req.isArchived
+            req.isArchived,
+            sortField(req.sortBy),
+            sortDirection(req.sortDir),
+            limit,
+            offset
         );
 
         List<TaskResponse> responses = taskService.search(criteria).stream()
             .map(TaskResponse::from)
             .toList();
 
-        return new ResponseWrapper(responses);
+        return new ResponseWrapper(responses, taskService.countMatching(criteria), limit, offset);
     }
 
-    public static record ResponseWrapper(List<TaskResponse> tasks) {}
+    private static TaskSortField sortField(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return TaskSortField.UPDATED_AT;
+        }
+        try {
+            return TaskSortField.fromValue(requested);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Сортировать можно по createdAt, updatedAt, dueDate или title");
+        }
+    }
+
+    private static SortDirection sortDirection(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return SortDirection.DESC;
+        }
+        try {
+            return SortDirection.fromValue(requested);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Направление сортировки — asc или desc");
+        }
+    }
+
+    /**
+     * {@code total} — сколько задач подходит под условия целиком, без учёта
+     * страницы: без него по выдаче нельзя понять, есть ли ещё что-то дальше.
+     */
+    public static record ResponseWrapper(List<TaskResponse> tasks, long total, int limit, int offset) {
+        static ResponseWrapper empty(int limit, int offset) {
+            return new ResponseWrapper(List.of(), 0, limit, offset);
+        }
+    }
 }

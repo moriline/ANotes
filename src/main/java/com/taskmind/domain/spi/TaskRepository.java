@@ -13,6 +13,9 @@ public interface TaskRepository {
     List<Task> findByDiscussionContent(String query);
     List<Task> search(TaskSearchCriteria criteria);
 
+    /** Сколько задач подходит под условия без учёта limit/offset. */
+    long count(TaskSearchCriteria criteria);
+
     /** Точечная запись итога по задаче, без перезаписи остальных полей. */
     void updateSummary(Integer taskId, String summary);
 
