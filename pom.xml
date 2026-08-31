@@ -77,6 +77,15 @@
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
 
+        <!-- ===== OPENAPI =====
+             Спека генерируется из самих аннотаций ресурсов и отдаётся на
+             /q/openapi. Рукописные yaml-описания расходились с кодом молча:
+             сгенерированной расходиться негде. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+
         <!-- ===== SECURITY (JWT + BCrypt) ===== -->
         <dependency>
             <groupId>io.quarkus</groupId>
