@@ -113,6 +113,12 @@ public class TaskService {
     public Task addDiscussionBlock(Task task, DiscussionBlock block) {
         var blocks = new ArrayList<>(task.discussion());
         blocks.add(block);
+        return replaceDiscussion(task, blocks);
+    }
+
+    /** Полная замена дерева обсуждения — правка и перестройка уже написанного. */
+    @Transactional
+    public Task replaceDiscussion(Task task, List<DiscussionBlock> blocks) {
         repository.updateDiscussion(task.id(), blocks);
         return repository.findById(task.id()).orElseThrow();
     }

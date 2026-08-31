@@ -17,8 +17,13 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -55,7 +60,9 @@ public class TaskDiscussionResource {
 
         UUID blockId = resolveBlockId(task, req.id());
         int level = resolveLevel(task, req.parentId());
-        String author = resolveAuthor(req.author(), guard.callerId(sec));
+        String author = req.author() != null && !req.author().isBlank()
+            ? req.author()
+            : callerName(guard.callerId(sec));
 
         var block = new DiscussionBlock(
             blockId,
@@ -69,6 +76,45 @@ public class TaskDiscussionResource {
 
         taskService.addDiscussionBlock(task, block);
         return Response.status(Response.Status.CREATED).entity(DiscussionBlockResponse.from(block)).build();
+    }
+
+    /**
+     * Полная замена дерева: правка формулировок, перевешивание веток, удаление
+     * лишнего. Пустой список стирает обсуждение.
+     *
+     * <p>Уровни вложенности пересчитываются по {@code parentId}, а {@code createdAt}
+     * у блоков, которые уже были в задаче, сохраняется — переписывание текста не
+     * должно выглядеть как заново созданное обсуждение.
+     */
+    @PUT
+    public List<DiscussionBlockResponse> replace(@PathParam("taskId") Integer taskId,
+                                                 List<DiscussionBlockRequest> body,
+                                                 @Context SecurityContext sec) {
+        Task task = guard.requireAccessibleTask(taskId, sec);
+        List<DiscussionBlockRequest> requested = body == null ? List.of() : body;
+
+        List<UUID> ids = assignIds(requested);
+        Map<UUID, UUID> parentById = mapParents(requested, ids);
+        Map<UUID, Instant> createdBefore = existingCreationTimes(task);
+        String fallbackAuthor = callerName(guard.callerId(sec));
+
+        List<DiscussionBlock> blocks = new ArrayList<>();
+        for (int i = 0; i < requested.size(); i++) {
+            DiscussionBlockRequest req = requested.get(i);
+            UUID id = ids.get(i);
+            blocks.add(new DiscussionBlock(
+                id,
+                req.parentId(),
+                req.author() != null && !req.author().isBlank() ? req.author() : fallbackAuthor,
+                req.type() != null ? req.type() : BlockType.MESSAGE,
+                req.content(),
+                levelOf(id, parentById),
+                createdBefore.getOrDefault(id, Instant.now())
+            ));
+        }
+
+        taskService.replaceDiscussion(task, blocks);
+        return blocks.stream().map(DiscussionBlockResponse::from).toList();
     }
 
     /** Клиентский UUID сохраняется как есть; повтор — конфликт, а не молчаливый дубль. */
@@ -99,10 +145,63 @@ public class TaskDiscussionResource {
             .level() + 1;
     }
 
-    private String resolveAuthor(String requestedAuthor, Integer callerId) {
-        if (requestedAuthor != null && !requestedAuthor.isBlank()) {
-            return requestedAuthor;
+    private List<UUID> assignIds(List<DiscussionBlockRequest> requested) {
+        List<UUID> ids = new ArrayList<>();
+        Set<UUID> used = new HashSet<>();
+        for (DiscussionBlockRequest req : requested) {
+            if (req.content() == null || req.content().isBlank()) {
+                throw new BadRequestException("У каждого блока обсуждения должен быть content");
+            }
+            UUID id = req.id() != null ? req.id() : UUID.randomUUID();
+            if (!used.add(id)) {
+                throw new BadRequestException("Блок " + id + " встречается в дереве дважды");
+            }
+            ids.add(id);
         }
+        return ids;
+    }
+
+    private Map<UUID, UUID> mapParents(List<DiscussionBlockRequest> requested, List<UUID> ids) {
+        Set<UUID> known = new HashSet<>(ids);
+        Map<UUID, UUID> parentById = new HashMap<>();
+        for (int i = 0; i < requested.size(); i++) {
+            UUID parentId = requested.get(i).parentId();
+            if (parentId != null && !known.contains(parentId)) {
+                throw new BadRequestException(
+                    "Родительский блок " + parentId + " отсутствует в присланном дереве");
+            }
+            parentById.put(ids.get(i), parentId);
+        }
+        return parentById;
+    }
+
+    private int levelOf(UUID id, Map<UUID, UUID> parentById) {
+        Set<UUID> visited = new HashSet<>();
+        visited.add(id);
+
+        int level = 0;
+        UUID current = parentById.get(id);
+        while (current != null) {
+            if (!visited.add(current)) {
+                throw new BadRequestException("В дереве обсуждения есть цикл на блоке " + current);
+            }
+            level++;
+            current = parentById.get(current);
+        }
+        return level;
+    }
+
+    private Map<UUID, Instant> existingCreationTimes(Task task) {
+        Map<UUID, Instant> created = new HashMap<>();
+        for (DiscussionBlock block : task.discussion()) {
+            if (block.id() != null && block.createdAt() != null) {
+                created.put(block.id(), block.createdAt());
+            }
+        }
+        return created;
+    }
+
+    private String callerName(Integer callerId) {
         return userService.findById(callerId).map(user -> user.username()).orElse(String.valueOf(callerId));
     }
 }
