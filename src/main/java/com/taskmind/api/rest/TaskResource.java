@@ -4,10 +4,12 @@ import com.taskmind.api.dto.TaskRequest;
 import com.taskmind.api.dto.TaskResponse;
 import com.taskmind.api.dto.TaskUpdateRequest;
 import com.taskmind.application.service.AuthService;
+import com.taskmind.application.service.PermissionService;
 import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.application.service.ProjectStatusService;
 import com.taskmind.application.service.TaskService;
 import com.taskmind.application.service.UserService;
+import com.taskmind.domain.model.Action;
 import com.taskmind.domain.model.Task;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -28,12 +30,18 @@ public class TaskResource {
     @Inject TaskService service;
     @Inject AuthService authService;
     @Inject ProjectAccessService projectAccessService;
+    @Inject PermissionService permissionService;
     @Inject ProjectStatusService projectStatusService;
     @Inject UserService userService;
 
+    /**
+     * Завести задачу может участник с правом {@code task:create} — все роли,
+     * кроме Guest и Disabled. Раньше проверки не было: задача создавалась в любом
+     * проекте по одному лишь его id.
+     */
     @POST
     public Response create(@PathParam("projectId") Integer projectId, @Valid TaskRequest req, @Context SecurityContext sec) {
-        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+        Integer userId = requirePermission(projectId, Action.TASK_CREATE, sec);
         var created = service.createTask(projectId, req.title(), req.description(), req.tags(), userId);
         return Response.status(Response.Status.CREATED).entity(TaskResponse.from(created)).build();
     }
@@ -80,11 +88,30 @@ public class TaskResource {
         return TaskResponse.from(service.applyUpdate(task, req, userId));
     }
 
+    /**
+     * Удалить задачу может участник с правом {@code task:delete} (Admin и Manager).
+     * Раньше метод не смотрел ни на проект из пути, ни на права: достаточно было
+     * знать taskId, чтобы снести чужую задачу.
+     */
     @DELETE
     @Path("/{taskId}")
-    public Response delete(@PathParam("taskId") Integer taskId) {
-        service.deleteTask(taskId);
+    public Response delete(@PathParam("projectId") Integer projectId,
+                           @PathParam("taskId") Integer taskId,
+                           @Context SecurityContext sec) {
+        requirePermission(projectId, Action.TASK_DELETE, sec);
+        Task task = requireTaskOfProject(projectId, taskId);
+
+        service.deleteTask(task.id());
         return Response.noContent().build();
+    }
+
+    /** Право на действие в проекте; возвращает id вызывающего. */
+    private Integer requirePermission(Integer projectId, Action action, SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+        if (!permissionService.canPerform(userId, projectId, action)) {
+            throw new ForbiddenException("Нет права " + action.getValue() + " в проекте " + projectId);
+        }
+        return userId;
     }
 
     /** Проверяет доступ и заодно возвращает id вызывающего — он нужен для ленты активности. */

@@ -4,6 +4,7 @@ import com.taskmind.domain.model.Action;
 import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.model.ProjectRole;
 import com.taskmind.domain.spi.MembershipRepository;
+import com.taskmind.domain.spi.ProjectRepository;
 import com.taskmind.infrastructure.db.ProjectRoleEntity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -14,6 +15,9 @@ public class PermissionService {
 
     @Inject
     MembershipRepository membershipRepository;
+
+    @Inject
+    ProjectRepository projectRepository;
 
     private static final Map<String, List<String>> HIERARCHY = Map.of(
         "Admin", List.of("Manager", "Developer", "Guest"),
@@ -29,6 +33,20 @@ public class PermissionService {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * Право на действие в проекте с поправкой на владельца.
+     *
+     * <p>{@link #hasPermission} смотрит только в projectMembers, а владелец
+     * проекта, заведённого до того, как создатель стал автоматически попадать в
+     * участники, там отсутствует — и оказался бы без прав на собственный проект.
+     */
+    public boolean canPerform(Integer userId, Integer projectId, Action action) {
+        boolean isOwner = projectRepository.findById(projectId)
+            .map(project -> userId.equals(project.ownerUserId()))
+            .orElse(false);
+        return isOwner || hasPermission(userId, projectId, action);
     }
 
     public boolean hasPermission(Integer userId, Integer projectId, Action action) {
