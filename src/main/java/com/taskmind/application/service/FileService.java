@@ -63,7 +63,7 @@ public class FileService {
     @Transactional
     public void deleteFile(Integer fileId, Integer userId) throws IOException {
         FileEntity entity = FileEntity.findById(fileId);
-        if (entity == null) return;
+        if (entity == null) throw new ResourceNotFoundException("Файл " + fileId + " не найден");
         // Удалить вложение может только тот, кто его загрузил.
         if (!entity.uploadedByUserId.equals(userId)) throw new AccessDeniedException("Удалить можно только свой файл");
 

@@ -30,7 +30,7 @@ public class CommentService {
     @Transactional
     public CommentResponse updateComment(Integer commentId, Integer userId, String content) {
         CommentEntity entity = CommentEntity.findById(commentId);
-        if (entity == null) throw new IllegalArgumentException("Comment not found");
+        if (entity == null) throw new ResourceNotFoundException("Комментарий " + commentId + " не найден");
         if (!entity.userId.equals(userId)) throw new AccessDeniedException("Редактировать можно только свой комментарий");
         
         entity.content = content;
@@ -42,7 +42,8 @@ public class CommentService {
     @Transactional
     public void deleteComment(Integer commentId, Integer userId) {
         CommentEntity entity = CommentEntity.findById(commentId);
-        if (entity == null) return;
+        // Молчаливый выход отвечал 204, то есть «удалил» несуществующее.
+        if (entity == null) throw new ResourceNotFoundException("Комментарий " + commentId + " не найден");
         if (!entity.userId.equals(userId)) throw new AccessDeniedException("Удалить можно только свой комментарий");
         entity.delete();
     }
