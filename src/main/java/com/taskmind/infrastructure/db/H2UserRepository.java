@@ -4,7 +4,9 @@ import com.taskmind.domain.model.User;
 import com.taskmind.domain.spi.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class H2UserRepository implements UserRepository {
@@ -26,5 +28,17 @@ public class H2UserRepository implements UserRepository {
     }
     @Override public Optional<User> findByEmail(String email) {
         return UserEntity.<UserEntity>find("email", email).firstResultOptional().map(UserEntity::toDomainModel);
+    }
+
+    @Override public List<User> search(String query, int limit) {
+        String pattern = "%" + (query == null ? "" : query.toLowerCase()) + "%";
+        return UserEntity.<UserEntity>find(
+                "isActive = true and (lower(username) like ?1 or lower(displayName) like ?1 or lower(email) like ?1)"
+                    + " order by username",
+                pattern)
+            .page(0, limit)
+            .list().stream()
+            .map(UserEntity::toDomainModel)
+            .collect(Collectors.toList());
     }
 }
