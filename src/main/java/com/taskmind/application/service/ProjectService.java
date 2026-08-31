@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.Optional;
 
 @ApplicationScoped
 public class ProjectService {
@@ -32,6 +33,10 @@ public class ProjectService {
         membershipService.addMember(saved.id(), ownerUserId, MembershipService.ROLE_ADMIN);
 
         return saved;
+    }
+
+    public Optional<Project> findById(Integer id) {
+        return repository.findById(id);
     }
 
     /**

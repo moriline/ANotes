@@ -39,8 +39,22 @@ public class TaskResource {
     }
 
     @GET
-    public List<TaskResponse> list(@PathParam("projectId") Integer projectId) {
+    public List<TaskResponse> list(@PathParam("projectId") Integer projectId, @Context SecurityContext sec) {
+        requireProjectAccess(projectId, sec);
         return service.listByProject(projectId).stream().map(TaskResponse::from).toList();
+    }
+
+    /**
+     * Карточка одной задачи. Раньше задачу нельзя было прочитать по её id: только
+     * выгрузить весь список проекта или найти через /api/find.
+     */
+    @GET
+    @Path("/{taskId}")
+    public TaskResponse get(@PathParam("projectId") Integer projectId,
+                            @PathParam("taskId") Integer taskId,
+                            @Context SecurityContext sec) {
+        requireProjectAccess(projectId, sec);
+        return TaskResponse.from(requireTaskOfProject(projectId, taskId));
     }
 
     /**
@@ -57,14 +71,8 @@ public class TaskResource {
                                @PathParam("taskId") Integer taskId,
                                TaskUpdateRequest req,
                                @Context SecurityContext sec) {
-        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
-        if (!projectAccessService.canAccess(userId, projectId)) {
-            throw new ForbiddenException("Нет доступа к проекту " + projectId);
-        }
-
-        Task task = service.findById(taskId)
-            .filter(t -> t.projectId().equals(projectId))
-            .orElseThrow(() -> new NotFoundException("Задача " + taskId + " не найдена в проекте " + projectId));
+        requireProjectAccess(projectId, sec);
+        Task task = requireTaskOfProject(projectId, taskId);
 
         validateAssignee(projectId, req.assignedUserId());
         validateStatus(projectId, req.statusId());
@@ -77,6 +85,19 @@ public class TaskResource {
     public Response delete(@PathParam("taskId") Integer taskId) {
         service.deleteTask(taskId);
         return Response.noContent().build();
+    }
+
+    private void requireProjectAccess(Integer projectId, SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+        if (!projectAccessService.canAccess(userId, projectId)) {
+            throw new ForbiddenException("Нет доступа к проекту " + projectId);
+        }
+    }
+
+    private Task requireTaskOfProject(Integer projectId, Integer taskId) {
+        return service.findById(taskId)
+            .filter(task -> task.projectId().equals(projectId))
+            .orElseThrow(() -> new NotFoundException("Задача " + taskId + " не найдена в проекте " + projectId));
     }
 
     /** Исполнителем можно поставить только того, кто сам видит этот проект. */

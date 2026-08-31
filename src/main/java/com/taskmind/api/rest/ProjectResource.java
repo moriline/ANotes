@@ -3,6 +3,7 @@ package com.taskmind.api.rest;
 import com.taskmind.api.dto.ProjectRequest;
 import com.taskmind.api.dto.ProjectResponse;
 import com.taskmind.application.service.AuthService;
+import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.application.service.ProjectService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -22,6 +23,7 @@ public class ProjectResource {
 
     @Inject ProjectService service;
     @Inject AuthService authService;
+    @Inject ProjectAccessService projectAccessService;
 
     @POST
     public Response create(@Valid ProjectRequest request, @Context SecurityContext sec) {
@@ -36,6 +38,21 @@ public class ProjectResource {
         return service.listAccessibleProjects(userId).stream()
             .map(ProjectResponse::fromDomain)
             .toList();
+    }
+
+    /** Карточка проекта: без неё открыть проект по ссылке было нельзя, только перебрать список. */
+    @GET
+    @Path("/{id}")
+    public ProjectResponse get(@PathParam("id") Integer id, @Context SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+
+        var project = service.findById(id)
+            .orElseThrow(() -> new NotFoundException("Проект " + id + " не найден"));
+
+        if (!projectAccessService.canAccess(userId, id)) {
+            throw new ForbiddenException("Нет доступа к проекту " + id);
+        }
+        return ProjectResponse.fromDomain(project);
     }
 
     @DELETE
