@@ -2,8 +2,13 @@ package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.TaskRequest;
 import com.taskmind.api.dto.TaskResponse;
+import com.taskmind.api.dto.TaskUpdateRequest;
 import com.taskmind.application.service.AuthService;
+import com.taskmind.application.service.ProjectAccessService;
+import com.taskmind.application.service.ProjectStatusService;
 import com.taskmind.application.service.TaskService;
+import com.taskmind.application.service.UserService;
+import com.taskmind.domain.model.Task;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -22,6 +27,9 @@ public class TaskResource {
 
     @Inject TaskService service;
     @Inject AuthService authService;
+    @Inject ProjectAccessService projectAccessService;
+    @Inject ProjectStatusService projectStatusService;
+    @Inject UserService userService;
 
     @POST
     public Response create(@PathParam("projectId") Integer projectId, @Valid TaskRequest req, @Context SecurityContext sec) {
@@ -35,10 +43,66 @@ public class TaskResource {
         return service.listByProject(projectId).stream().map(TaskResponse::from).toList();
     }
 
+    /**
+     * Частичное обновление задачи: назначение исполнителя, перевод по статусам,
+     * сроки, оценка, архивация, правка текста. До этого задачу нельзя было ни
+     * назначить, ни сдвинуть по доске — {@code assignedUserId} и {@code statusId}
+     * существовали только в базе.
+     *
+     * <p>Поля со значением {@code null} остаются без изменений (см. TaskUpdateRequest).
+     */
+    @PATCH
+    @Path("/{taskId}")
+    public TaskResponse update(@PathParam("projectId") Integer projectId,
+                               @PathParam("taskId") Integer taskId,
+                               TaskUpdateRequest req,
+                               @Context SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+        if (!projectAccessService.canAccess(userId, projectId)) {
+            throw new ForbiddenException("Нет доступа к проекту " + projectId);
+        }
+
+        Task task = service.findById(taskId)
+            .filter(t -> t.projectId().equals(projectId))
+            .orElseThrow(() -> new NotFoundException("Задача " + taskId + " не найдена в проекте " + projectId));
+
+        validateAssignee(projectId, req.assignedUserId());
+        validateStatus(projectId, req.statusId());
+
+        return TaskResponse.from(service.applyUpdate(task, req));
+    }
+
     @DELETE
     @Path("/{taskId}")
     public Response delete(@PathParam("taskId") Integer taskId) {
         service.deleteTask(taskId);
         return Response.noContent().build();
+    }
+
+    /** Исполнителем можно поставить только того, кто сам видит этот проект. */
+    private void validateAssignee(Integer projectId, Integer assignedUserId) {
+        if (assignedUserId == null) {
+            return;
+        }
+        if (userService.findById(assignedUserId).isEmpty()) {
+            throw new BadRequestException("Пользователь " + assignedUserId + " не существует");
+        }
+        if (!projectAccessService.canAccess(assignedUserId, projectId)) {
+            throw new BadRequestException(
+                "Пользователь " + assignedUserId + " не участник проекта " + projectId);
+        }
+    }
+
+    /** Статус обязан принадлежать этому же проекту: внешний ключ такого не проверяет. */
+    private void validateStatus(Integer projectId, Integer statusId) {
+        if (statusId == null) {
+            return;
+        }
+        boolean belongsToProject = projectStatusService.listByProject(projectId).stream()
+            .anyMatch(status -> status.id.equals(statusId));
+        if (!belongsToProject) {
+            throw new BadRequestException(
+                "Статус " + statusId + " не принадлежит проекту " + projectId);
+        }
     }
 }

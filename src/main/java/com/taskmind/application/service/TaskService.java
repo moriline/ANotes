@@ -1,5 +1,6 @@
 package com.taskmind.application.service;
 
+import com.taskmind.api.dto.TaskUpdateRequest;
 import com.taskmind.domain.model.Task;
 import com.taskmind.domain.model.TimeEntry;
 import com.taskmind.domain.spi.TaskRepository;
@@ -8,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.Optional;
 import java.time.Instant;
 
 @ApplicationScoped
@@ -48,6 +50,38 @@ public class TaskService {
 
     public List<Task> listByProject(Integer projectId) {
         return repository.findByProject(projectId);
+    }
+
+    public Optional<Task> findById(Integer taskId) {
+        return repository.findById(taskId);
+    }
+
+    /**
+     * Накладывает частичное обновление на задачу: поле со значением {@code null}
+     * остаётся прежним. Обсуждение, summary и время создания не трогаются — их
+     * меняют другие сценарии.
+     */
+    @Transactional
+    public Task applyUpdate(Task current, TaskUpdateRequest req) {
+        var updated = new Task(
+            current.id(),
+            current.projectId(),
+            req.title() != null ? req.title() : current.title(),
+            req.description() != null ? req.description() : current.description(),
+            current.creatorUserId(),
+            req.assignedUserId() != null ? req.assignedUserId() : current.assignedUserId(),
+            req.statusId() != null ? req.statusId() : current.statusId(),
+            req.dueDate() != null ? req.dueDate() : current.dueDate(),
+            req.startDate() != null ? req.startDate() : current.startDate(),
+            req.estimatedHours() != null ? req.estimatedHours() : current.estimatedHours(),
+            req.tags() != null ? req.tags() : current.tags(),
+            req.isArchived() != null ? req.isArchived() : current.isArchived(),
+            current.discussion(),
+            current.summary(),
+            current.createdAt(),
+            Instant.now()
+        );
+        return repository.save(updated);
     }
 
     @Transactional
