@@ -74,7 +74,7 @@ public class TaskDiscussionResource {
             Instant.now()
         );
 
-        taskService.addDiscussionBlock(task, block);
+        taskService.addDiscussionBlock(task, block, guard.callerId(sec));
         return Response.status(Response.Status.CREATED).entity(DiscussionBlockResponse.from(block)).build();
     }
 
@@ -113,7 +113,7 @@ public class TaskDiscussionResource {
             ));
         }
 
-        taskService.replaceDiscussion(task, blocks);
+        taskService.replaceDiscussion(task, blocks, guard.callerId(sec));
         return blocks.stream().map(DiscussionBlockResponse::from).toList();
     }
 

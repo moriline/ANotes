@@ -1,10 +1,12 @@
 package com.taskmind.application.service;
 
+import com.taskmind.domain.model.ActivityAction;
 import com.taskmind.domain.model.Project;
 import com.taskmind.domain.spi.ProjectRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +17,7 @@ public class ProjectService {
     @Inject ProjectStatusService projectStatusService;
     @Inject ProjectAccessService projectAccessService;
     @Inject MembershipService membershipService;
+    @Inject ActivityLogService activityLog;
 
     @Transactional
     public Project createProject(String name, String description, Integer ownerUserId) {
@@ -28,9 +31,15 @@ public class ProjectService {
         // Без доски по умолчанию задачам проекта было бы некуда вставать.
         projectStatusService.createDefaults(saved.id());
 
+        // Событие о создании пишется до добавления владельца, иначе в ленте
+        // «участник добавлен» оказывается старше самого проекта.
+        var details = new HashMap<String, Object>();
+        details.put("name", saved.name());
+        activityLog.record(saved.id(), null, ownerUserId, ActivityAction.PROJECT_CREATED, details);
+
         // Создатель раньше не попадал в projectMembers: формально он не был
         // участником собственного проекта, и роль ему выдать было нечем.
-        membershipService.addMember(saved.id(), ownerUserId, MembershipService.ROLE_ADMIN);
+        membershipService.addMember(saved.id(), ownerUserId, MembershipService.ROLE_ADMIN, ownerUserId);
 
         return saved;
     }

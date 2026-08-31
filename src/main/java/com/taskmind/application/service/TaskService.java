@@ -1,6 +1,7 @@
 package com.taskmind.application.service;
 
 import com.taskmind.api.dto.TaskUpdateRequest;
+import com.taskmind.domain.model.ActivityAction;
 import com.taskmind.domain.model.DiscussionBlock;
 import com.taskmind.domain.model.Task;
 import com.taskmind.domain.model.TimeEntry;
@@ -11,7 +12,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.time.Instant;
 
@@ -21,6 +24,7 @@ public class TaskService {
     @Inject TaskRepository repository;
     @Inject H2TimeEntryRepository timeEntryRepository;
     @Inject ProjectStatusService projectStatusService;
+    @Inject ActivityLogService activityLog;
 
     @Transactional
     public Task createTask(Integer projectId, String title, String description, List<String> tags, Integer creatorUserId) {
@@ -48,7 +52,13 @@ public class TaskService {
             Instant.now(),
             Instant.now()
         );
-        return repository.save(task);
+        var saved = repository.save(task);
+
+        var details = new HashMap<String, Object>();
+        details.put("title", saved.title());
+        activityLog.record(saved.projectId(), saved.id(), creatorUserId, ActivityAction.TASK_CREATED, details);
+
+        return saved;
     }
 
     public List<Task> listByProject(Integer projectId) {
@@ -65,7 +75,7 @@ public class TaskService {
      * меняют другие сценарии.
      */
     @Transactional
-    public Task applyUpdate(Task current, TaskUpdateRequest req) {
+    public Task applyUpdate(Task current, TaskUpdateRequest req, Integer actorUserId) {
         var updated = new Task(
             current.id(),
             current.projectId(),
@@ -84,7 +94,45 @@ public class TaskService {
             current.createdAt(),
             Instant.now()
         );
-        return repository.save(updated);
+        var saved = repository.save(updated);
+        recordUpdate(current, saved, actorUserId);
+        return saved;
+    }
+
+    /**
+     * Смена исполнителя и перевод по статусам попадают в ленту отдельными
+     * событиями — в ленте это то, что читают в первую очередь. Общий TASK_UPDATED
+     * пишется, только если поменялось что-то ещё, иначе один PATCH давал бы две
+     * записи об одном и том же.
+     */
+    private void recordUpdate(Task before, Task after, Integer actorUserId) {
+        if (!Objects.equals(before.assignedUserId(), after.assignedUserId())) {
+            var details = new HashMap<String, Object>();
+            details.put("from", before.assignedUserId());
+            details.put("to", after.assignedUserId());
+            activityLog.record(after.projectId(), after.id(), actorUserId, ActivityAction.ASSIGNEE_UPDATED, details);
+        }
+        if (!Objects.equals(before.statusId(), after.statusId())) {
+            var details = new HashMap<String, Object>();
+            details.put("from", before.statusId());
+            details.put("to", after.statusId());
+            activityLog.record(after.projectId(), after.id(), actorUserId, ActivityAction.STATUS_CHANGED, details);
+        }
+
+        var changedFields = new ArrayList<String>();
+        if (!Objects.equals(before.title(), after.title())) changedFields.add("title");
+        if (!Objects.equals(before.description(), after.description())) changedFields.add("description");
+        if (!Objects.equals(before.tags(), after.tags())) changedFields.add("tags");
+        if (!Objects.equals(before.dueDate(), after.dueDate())) changedFields.add("dueDate");
+        if (!Objects.equals(before.startDate(), after.startDate())) changedFields.add("startDate");
+        if (!Objects.equals(before.estimatedHours(), after.estimatedHours())) changedFields.add("estimatedHours");
+        if (before.isArchived() != after.isArchived()) changedFields.add("isArchived");
+
+        if (!changedFields.isEmpty()) {
+            var details = new HashMap<String, Object>();
+            details.put("fields", changedFields);
+            activityLog.record(after.projectId(), after.id(), actorUserId, ActivityAction.TASK_UPDATED, details);
+        }
     }
 
     public List<Task> search(TaskSearchCriteria criteria) {
@@ -96,9 +144,15 @@ public class TaskService {
      * задачу. Пустая строка стирает прежний итог.
      */
     @Transactional
-    public Task setSummary(Integer taskId, String summary) {
+    public Task setSummary(Integer taskId, String summary, Integer actorUserId) {
         repository.updateSummary(taskId, summary);
-        return repository.findById(taskId).orElseThrow();
+        Task updated = repository.findById(taskId).orElseThrow();
+
+        var details = new HashMap<String, Object>();
+        details.put("length", summary == null ? 0 : summary.length());
+        activityLog.record(updated.projectId(), updated.id(), actorUserId, ActivityAction.SUMMARY_UPDATED, details);
+
+        return updated;
     }
 
     /**
@@ -110,15 +164,32 @@ public class TaskService {
      * многопользовательской нагрузки блоки нужно вынести в отдельную таблицу.
      */
     @Transactional
-    public Task addDiscussionBlock(Task task, DiscussionBlock block) {
+    public Task addDiscussionBlock(Task task, DiscussionBlock block, Integer actorUserId) {
         var blocks = new ArrayList<>(task.discussion());
         blocks.add(block);
-        return replaceDiscussion(task, blocks);
+        Task updated = storeDiscussion(task, blocks);
+
+        var details = new HashMap<String, Object>();
+        details.put("author", block.author());
+        details.put("type", block.type() != null ? block.type().name() : null);
+        activityLog.record(task.projectId(), task.id(), actorUserId, ActivityAction.DISCUSSION_BLOCK_ADDED, details);
+
+        return updated;
     }
 
     /** Полная замена дерева обсуждения — правка и перестройка уже написанного. */
     @Transactional
-    public Task replaceDiscussion(Task task, List<DiscussionBlock> blocks) {
+    public Task replaceDiscussion(Task task, List<DiscussionBlock> blocks, Integer actorUserId) {
+        Task updated = storeDiscussion(task, blocks);
+
+        var details = new HashMap<String, Object>();
+        details.put("blocks", blocks.size());
+        activityLog.record(task.projectId(), task.id(), actorUserId, ActivityAction.DISCUSSION_REPLACED, details);
+
+        return updated;
+    }
+
+    private Task storeDiscussion(Task task, List<DiscussionBlock> blocks) {
         repository.updateDiscussion(task.id(), blocks);
         return repository.findById(task.id()).orElseThrow();
     }

@@ -71,13 +71,13 @@ public class TaskResource {
                                @PathParam("taskId") Integer taskId,
                                TaskUpdateRequest req,
                                @Context SecurityContext sec) {
-        requireProjectAccess(projectId, sec);
+        Integer userId = requireProjectAccess(projectId, sec);
         Task task = requireTaskOfProject(projectId, taskId);
 
         validateAssignee(projectId, req.assignedUserId());
         validateStatus(projectId, req.statusId());
 
-        return TaskResponse.from(service.applyUpdate(task, req));
+        return TaskResponse.from(service.applyUpdate(task, req, userId));
     }
 
     @DELETE
@@ -87,11 +87,13 @@ public class TaskResource {
         return Response.noContent().build();
     }
 
-    private void requireProjectAccess(Integer projectId, SecurityContext sec) {
+    /** Проверяет доступ и заодно возвращает id вызывающего — он нужен для ленты активности. */
+    private Integer requireProjectAccess(Integer projectId, SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
         if (!projectAccessService.canAccess(userId, projectId)) {
             throw new ForbiddenException("Нет доступа к проекту " + projectId);
         }
+        return userId;
     }
 
     private Task requireTaskOfProject(Integer projectId, Integer taskId) {

@@ -37,6 +37,6 @@ public class TaskSummaryResource {
                                    @Valid TaskSummaryRequest req,
                                    @Context SecurityContext sec) {
         guard.requireAccessibleTask(taskId, sec);
-        return TaskSummaryResponse.from(taskService.setSummary(taskId, req.summary()));
+        return TaskSummaryResponse.from(taskService.setSummary(taskId, req.summary(), guard.callerId(sec)));
     }
 }

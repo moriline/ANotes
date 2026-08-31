@@ -68,7 +68,7 @@ public class ProjectMemberResource {
                 Response.Status.CONFLICT);
         }
 
-        var membership = membershipService.addMember(projectId, req.userId(), req.roleId());
+        var membership = membershipService.addMember(projectId, req.userId(), req.roleId(), callerId);
         return Response.status(Response.Status.CREATED).entity(toResponse(membership)).build();
     }
 
@@ -88,7 +88,7 @@ public class ProjectMemberResource {
         }
 
         ProjectMembership membership = requireMembership(projectId, userId);
-        return toResponse(membershipService.changeRole(membership, req.roleId()));
+        return toResponse(membershipService.changeRole(membership, req.roleId(), callerId));
     }
 
     @DELETE
@@ -104,7 +104,7 @@ public class ProjectMemberResource {
             throw new BadRequestException("Нельзя удалить владельца проекта из участников");
         }
 
-        membershipService.removeMember(requireMembership(projectId, userId));
+        membershipService.removeMember(requireMembership(projectId, userId), callerId);
         return Response.noContent().build();
     }
 

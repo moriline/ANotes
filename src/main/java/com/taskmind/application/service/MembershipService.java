@@ -1,5 +1,6 @@
 package com.taskmind.application.service;
 
+import com.taskmind.domain.model.ActivityAction;
 import com.taskmind.domain.model.Project;
 import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.spi.MembershipRepository;
@@ -9,6 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +30,7 @@ public class MembershipService {
 
     @Inject MembershipRepository membershipRepository;
     @Inject ProjectRepository projectRepository;
+    @Inject ActivityLogService activityLog;
 
     public List<ProjectMembership> listMembers(Integer projectId) {
         return membershipRepository.findByProject(projectId);
@@ -68,23 +71,45 @@ public class MembershipService {
     }
 
     @Transactional
-    public ProjectMembership addMember(Integer projectId, Integer userId, Integer roleId) {
-        return membershipRepository.save(ProjectMembership.create(projectId, userId, roleId));
+    public ProjectMembership addMember(Integer projectId, Integer userId, Integer roleId, Integer actorUserId) {
+        var saved = membershipRepository.save(ProjectMembership.create(projectId, userId, roleId));
+
+        var details = new HashMap<String, Object>();
+        details.put("userId", userId);
+        details.put("roleId", roleId);
+        details.put("roleName", roleName(roleId));
+        activityLog.record(projectId, null, actorUserId, ActivityAction.MEMBER_ADDED, details);
+
+        return saved;
     }
 
     @Transactional
-    public ProjectMembership changeRole(ProjectMembership membership, Integer roleId) {
-        return membershipRepository.save(new ProjectMembership(
+    public ProjectMembership changeRole(ProjectMembership membership, Integer roleId, Integer actorUserId) {
+        var saved = membershipRepository.save(new ProjectMembership(
             membership.id(),
             membership.projectId(),
             membership.userId(),
             roleId,
             membership.joinedAt()
         ));
+
+        var details = new HashMap<String, Object>();
+        details.put("userId", membership.userId());
+        details.put("fromRoleId", membership.roleId());
+        details.put("toRoleId", roleId);
+        details.put("roleName", roleName(roleId));
+        activityLog.record(membership.projectId(), null, actorUserId, ActivityAction.MEMBER_ROLE_CHANGED, details);
+
+        return saved;
     }
 
     @Transactional
-    public void removeMember(ProjectMembership membership) {
+    public void removeMember(ProjectMembership membership, Integer actorUserId) {
         membershipRepository.deleteById(membership.id());
+
+        var details = new HashMap<String, Object>();
+        details.put("userId", membership.userId());
+        details.put("roleId", membership.roleId());
+        activityLog.record(membership.projectId(), null, actorUserId, ActivityAction.MEMBER_REMOVED, details);
     }
 }
