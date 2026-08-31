@@ -18,8 +18,8 @@ public class AuthService {
 
     @Transactional
     public String register(String username, String email, String password) {
-        if (userRepo.findByUsername(username).isPresent()) throw new IllegalArgumentException("Username taken");
-        if (userRepo.findByEmail(email).isPresent()) throw new IllegalArgumentException("Email taken");
+        if (userRepo.findByUsername(username).isPresent()) throw new DuplicateResourceException("Логин '" + username + "' уже занят");
+        if (userRepo.findByEmail(email).isPresent()) throw new DuplicateResourceException("Email '" + email + "' уже занят");
         var user = User.register(username, email, bcrypt.hash(password));
         userRepo.save(user);
         return login(username, password);

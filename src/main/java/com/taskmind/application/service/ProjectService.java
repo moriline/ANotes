@@ -22,7 +22,7 @@ public class ProjectService {
     @Transactional
     public Project createProject(String name, String description, Integer ownerUserId) {
         if (repository.findByName(name).isPresent()) {
-            throw new IllegalArgumentException("Project with name '%s' already exists".formatted(name));
+            throw new DuplicateResourceException("Проект с именем '%s' уже существует".formatted(name));
         }
 
         var project = Project.create(name, description, ownerUserId);

@@ -70,15 +70,26 @@ class AuthResourceTest {
         .then().statusCode(401);
     }
 
+    /** Занятый логин — 409. Раньше тут закреплялась 500: по ней форма регистрации
+     * не отличит «логин занят» от настоящей поломки сервера. */
     @Test @Order(5)
     void shouldRejectDuplicateUsername() {
         given().contentType(ContentType.JSON)
             .body("{\"username\":\"" + TEST_USER + "\",\"email\":\"other@example.com\",\"password\":\"" + TEST_PASS + "\"}")
         .when().post("/api/auth/register")
-        .then().statusCode(500);
+        .then().statusCode(409);
     }
 
+    /** Занятый email проверялся в коде, но не был покрыт тестом вовсе. */
     @Test @Order(6)
+    void shouldRejectDuplicateEmail() {
+        given().contentType(ContentType.JSON)
+            .body("{\"username\":\"other-" + TEST_USER + "\",\"email\":\"" + TEST_EMAIL + "\",\"password\":\"" + TEST_PASS + "\"}")
+        .when().post("/api/auth/register")
+        .then().statusCode(409);
+    }
+
+    @Test @Order(7)
     void shouldRejectUnauthenticatedAccess() {
         given()
         .when().get("/api/users/me")

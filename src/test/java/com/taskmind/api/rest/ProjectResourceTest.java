@@ -71,7 +71,7 @@ class ProjectResourceTest {
         .when()
             .post("/api/projects")
         .then()
-            .statusCode(500); // IllegalArgumentException maps to 500 by default in this project
+            .statusCode(409);
     }
 
     @Test
