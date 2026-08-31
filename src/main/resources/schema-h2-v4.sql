@@ -21,6 +21,9 @@ CREATE TABLE users (
     displayName VARCHAR(100),
     avatarUrl VARCHAR(255),
     isActive BOOLEAN DEFAULT TRUE,
+    -- Глобальный администратор: доступ к /api/admin/users. Ролей из projectRoles
+    -- для этого не хватает: они действуют только внутри одного проекта.
+    isAdmin BOOLEAN NOT NULL DEFAULT FALSE,
     createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
     updatedAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
 );

@@ -26,6 +26,9 @@ public class UserEntity extends PanacheEntityBase {
     public String avatarUrl;
     public boolean isActive;
 
+    /** Глобальный администратор: см. com.taskmind.domain.model.User#isAdmin. */
+    public boolean isAdmin;
+
     public Long createdAt;
     public Long updatedAt;
 
@@ -50,6 +53,7 @@ public class UserEntity extends PanacheEntityBase {
             displayName,
             avatarUrl,
             isActive,
+            isAdmin,
             createdAt != null ? Instant.ofEpochMilli(createdAt) : null,
             updatedAt != null ? Instant.ofEpochMilli(updatedAt) : null
         );
@@ -64,6 +68,7 @@ public class UserEntity extends PanacheEntityBase {
         e.displayName = u.displayName();
         e.avatarUrl = u.avatarUrl();
         e.isActive = u.isActive();
+        e.isAdmin = u.isAdmin();
         e.createdAt = u.createdAt() != null ? u.createdAt().toEpochMilli() : null;
         e.updatedAt = u.updatedAt() != null ? u.updatedAt().toEpochMilli() : null;
         return e;

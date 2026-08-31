@@ -2,6 +2,7 @@ package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,7 +99,9 @@ public class UserDirectoryTest {
     public void blockedUserDisappearsFromTheDirectory() {
         auth().get("/api/users?q=olga").then().body("username", hasItem("tester_olga"));
 
-        auth().body("{\"isActive\": false}")
+        // Блокировка идёт через /api/admin/users, а туда пускают только глобального
+        // администратора: обычного токена тут мало.
+        adminAuth().body("{\"isActive\": false}")
             .put("/api/admin/users/" + SEEDED_OLGA_ID + "/status").then().statusCode(200);
 
         auth().get("/api/users?q=olga").then()
@@ -120,5 +123,14 @@ public class UserDirectoryTest {
 
     private RequestSpecification auth() {
         return TestAuthHelper.authenticated(token);
+    }
+
+    /** Токен пользователя admin из сида: единственного с флагом isAdmin. */
+    private RequestSpecification adminAuth() {
+        String adminToken = given().contentType(ContentType.JSON)
+            .body("{\"username\":\"admin\",\"password\":\"admin123\"}")
+            .post("/api/auth/login").then().statusCode(200)
+            .extract().jsonPath().getString("token");
+        return TestAuthHelper.authenticated(adminToken);
     }
 }

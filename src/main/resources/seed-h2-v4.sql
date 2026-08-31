@@ -9,11 +9,13 @@
 -- таблицы данных со счётчиками identity, перезапущенными с 1 (см. TestDataCleanup).
 
 -- 1. Users
-INSERT INTO users (username, email, password, displayName, avatarUrl) VALUES
-('admin', 'admin@taskmanager.com', '$2a$10$hash...', 'Alex Admin', 'https://i.pravatar.cc/150?u=admin'),
-('dev_anna', 'anna@taskmanager.com', '$2a$10$hash...', 'Anna Developer', 'https://i.pravatar.cc/150?u=anna'),
-('designer_max', 'max@taskmanager.com', '$2a$10$hash...', 'Max Designer', 'https://i.pravatar.cc/150?u=max'),
-('tester_olga', 'olga@taskmanager.com', '$2a$10$hash...', 'Olga Tester', 'https://i.pravatar.cc/150?u=olga');
+-- У admin настоящий bcrypt-хеш (пароль admin123) и флаг isAdmin: иначе войти
+-- глобальным администратором было бы нечем, а /api/admin/users недостижим.
+INSERT INTO users (username, email, password, displayName, avatarUrl, isAdmin) VALUES
+('admin', 'admin@taskmanager.com', '$2a$10$OLdKsoXYe9U.kN3IFTi6Re7cfYkiKKC5GujlUW6VftfiMQtpgvgYO', 'Alex Admin', 'https://i.pravatar.cc/150?u=admin', TRUE),
+('dev_anna', 'anna@taskmanager.com', '$2a$10$hash...', 'Anna Developer', 'https://i.pravatar.cc/150?u=anna', FALSE),
+('designer_max', 'max@taskmanager.com', '$2a$10$hash...', 'Max Designer', 'https://i.pravatar.cc/150?u=max', FALSE),
+('tester_olga', 'olga@taskmanager.com', '$2a$10$hash...', 'Olga Tester', 'https://i.pravatar.cc/150?u=olga', FALSE);
 
 -- 2. Projects
 INSERT INTO projects (name, description, ownerUserId, color, icon) VALUES

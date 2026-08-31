@@ -28,8 +28,10 @@ public class AuthService {
     public String login(String username, String password) {
         var user = userRepo.findByUsername(username).orElseThrow(() -> new SecurityException("Invalid credentials"));
         if (!bcrypt.verify(password, user.password())) throw new SecurityException("Invalid credentials");
-        // For simplicity, we keep a default role, but in schema-v4 roles are in projectRoles table
-        return jwt.generateToken(user.id().toString(), user.username(), Set.of("USER"));
+        // USER есть у всех; ADMIN добавляется только глобальному администратору и
+        // открывает /api/admin/users. Роли проекта живут отдельно, в projectRoles.
+        Set<String> groups = user.isAdmin() ? Set.of("USER", "ADMIN") : Set.of("USER");
+        return jwt.generateToken(user.id().toString(), user.username(), groups);
     }
 
     public Integer getUserIdFromToken(String subject) {

@@ -1,7 +1,7 @@
 package com.taskmind.api.rest;
 
-import com.taskmind.application.service.PermissionService;
-import com.taskmind.domain.model.Action;
+import com.taskmind.api.dto.AdminUserResponse;
+import com.taskmind.application.service.AuthService;
 import com.taskmind.infrastructure.db.UserEntity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -13,38 +13,73 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
+/**
+ * Управление учётными записями. Ручки глобальные, поэтому и право на них
+ * глобальное — {@code users.isAdmin}, а не роль внутри проекта.
+ *
+ * <p>Раньше у класса не было ни {@code @RolesAllowed}, ни проверки прав: список
+ * пользователей вместе с bcrypt-хешами паролей отдавался кому угодно, включая
+ * неаутентифицированных, а удалить чужую учётку мог любой.
+ */
 @Path("/api/admin/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@RolesAllowed("ADMIN")
 public class AdminUserResource {
 
-    @Inject
-    PermissionService permissionService;
+    @Inject AuthService authService;
 
     @GET
-    public List<UserEntity> listAll(@Context SecurityContext ctx) {
-        // Ожидаем, что в контексте безопасности есть информация о текущем пользователе.
-        // Для примера просто возвращаем всех.
-        return UserEntity.listAll();
+    public List<AdminUserResponse> listAll() {
+        return UserEntity.<UserEntity>listAll().stream()
+            .map(AdminUserResponse::from)
+            .toList();
     }
 
     @DELETE
     @Path("/{id}")
     @Transactional
-    public Response deleteUser(@PathParam("id") Integer id) {
-        UserEntity.deleteById(id);
+    public Response deleteUser(@PathParam("id") Integer id, @Context SecurityContext sec) {
+        UserEntity user = requireUser(id);
+        // Иначе администратор способен снести самого себя и оставить систему
+        // вообще без администраторов.
+        if (id.equals(callerId(sec))) {
+            throw new BadRequestException("Нельзя удалить собственную учётную запись");
+        }
+        user.delete();
         return Response.noContent().build();
     }
 
     @PUT
     @Path("/{id}/status")
     @Transactional
-    public Response updateStatus(@PathParam("id") Integer id, Map<String, Boolean> body) {
+    public AdminUserResponse updateStatus(@PathParam("id") Integer id,
+                                          Map<String, Boolean> body,
+                                          @Context SecurityContext sec) {
+        UserEntity user = requireUser(id);
+
+        Boolean isActive = body == null ? null : body.get("isActive");
+        if (isActive == null) {
+            throw new BadRequestException("Требуется поле isActive (true или false)");
+        }
+        if (!isActive && id.equals(callerId(sec))) {
+            throw new BadRequestException("Нельзя заблокировать собственную учётную запись");
+        }
+
+        user.isActive = isActive;
+        return AdminUserResponse.from(user);
+    }
+
+    private UserEntity requireUser(Integer id) {
         UserEntity user = UserEntity.findById(id);
-        if (user == null) return Response.status(404).build();
-        user.isActive = body.get("isActive");
-        return Response.ok().build();
+        if (user == null) {
+            throw new NotFoundException("Пользователь " + id + " не найден");
+        }
+        return user;
+    }
+
+    private Integer callerId(SecurityContext sec) {
+        return authService.getUserIdFromToken(sec.getUserPrincipal().getName());
     }
 }
