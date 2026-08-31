@@ -66,7 +66,7 @@ public class FindResource {
             scope,
             req.titleSearch,
             req.contentSearch,
-            req.assignedUserId,
+            assignee(req, userId),
             req.statusId,
             req.isArchived,
             sortField(req.sortBy),
@@ -80,6 +80,21 @@ public class FindResource {
             .toList();
 
         return new ResponseWrapper(responses, taskService.countMatching(criteria), limit, offset);
+    }
+
+    /**
+     * Противоречивый запрос («мои задачи», но исполнитель — кто-то другой) лучше
+     * отклонить, чем молча выбрать одно из двух.
+     */
+    private static Integer assignee(FindTasksRequest req, Integer callerId) {
+        if (!Boolean.TRUE.equals(req.assignedToMe)) {
+            return req.assignedUserId;
+        }
+        if (req.assignedUserId != null && !req.assignedUserId.equals(callerId)) {
+            throw new BadRequestException(
+                "assignedToMe и assignedUserId противоречат друг другу");
+        }
+        return callerId;
     }
 
     private static TaskSortField sortField(String requested) {

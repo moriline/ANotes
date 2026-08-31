@@ -12,6 +12,14 @@ public class FindTasksRequest {
     public String contentSearch;
 
     public Integer assignedUserId;
+
+    /**
+     * «Мои задачи»: подставляет вызывающего в фильтр по исполнителю, чтобы клиенту
+     * не приходилось сначала спрашивать свой id. Вместе с {@code assignedUserId}
+     * можно указывать, только если там тот же самый пользователь.
+     */
+    public Boolean assignedToMe;
+
     public Integer statusId;
     public Boolean isArchived;
 
