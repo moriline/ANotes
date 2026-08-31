@@ -31,7 +31,7 @@ public class CommentService {
     public CommentResponse updateComment(Integer commentId, Integer userId, String content) {
         CommentEntity entity = CommentEntity.findById(commentId);
         if (entity == null) throw new IllegalArgumentException("Comment not found");
-        if (!entity.userId.equals(userId)) throw new SecurityException("Not allowed to edit this comment");
+        if (!entity.userId.equals(userId)) throw new AccessDeniedException("Редактировать можно только свой комментарий");
         
         entity.content = content;
         entity.isEdited = true;
@@ -43,7 +43,7 @@ public class CommentService {
     public void deleteComment(Integer commentId, Integer userId) {
         CommentEntity entity = CommentEntity.findById(commentId);
         if (entity == null) return;
-        if (!entity.userId.equals(userId)) throw new SecurityException("Not allowed to delete this comment");
+        if (!entity.userId.equals(userId)) throw new AccessDeniedException("Удалить можно только свой комментарий");
         entity.delete();
     }
 

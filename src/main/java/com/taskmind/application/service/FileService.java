@@ -64,8 +64,8 @@ public class FileService {
     public void deleteFile(Integer fileId, Integer userId) throws IOException {
         FileEntity entity = FileEntity.findById(fileId);
         if (entity == null) return;
-        // Simple security check: only uploader can delete
-        if (!entity.uploadedByUserId.equals(userId)) throw new SecurityException("Not allowed to delete this file");
+        // Удалить вложение может только тот, кто его загрузил.
+        if (!entity.uploadedByUserId.equals(userId)) throw new AccessDeniedException("Удалить можно только свой файл");
 
         Path filePath = root.resolve(entity.fileName);
         Files.deleteIfExists(filePath);

@@ -4,6 +4,12 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
+/**
+ * Неверные учётные данные при входе — 401.
+ *
+ * <p>Только этот случай: «залогинен, но не имеет права» отдаёт 403 через
+ * {@link AccessDeniedExceptionMapper}.
+ */
 @Provider
 public class SecurityExceptionMapper implements ExceptionMapper<SecurityException> {
     @Override
