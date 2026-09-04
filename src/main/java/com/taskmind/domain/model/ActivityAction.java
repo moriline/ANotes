@@ -8,6 +8,7 @@ package com.taskmind.domain.model;
  */
 public enum ActivityAction {
     PROJECT_CREATED,
+    PROJECT_UPDATED,
     TASK_CREATED,
     TASK_UPDATED,
     ASSIGNEE_UPDATED,

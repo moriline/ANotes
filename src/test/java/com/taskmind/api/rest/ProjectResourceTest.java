@@ -3,6 +3,7 @@ package com.taskmind.api.rest;
 import com.taskmind.TestDataCleanup;
 import com.taskmind.api.dto.ProjectRequest;
 import io.quarkus.test.junit.QuarkusTest;
+import java.util.List;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
@@ -104,18 +105,42 @@ class ProjectResourceTest {
 
     @Test
     @Order(6)
-    void testCreateProjectWithColor() {
-        // Adding a test case similar to @database\ProjectResourceTest.java
-        String projectName = "Color Project";
-        // ProjectRequest не принимает color — новый проект всегда получает цвет по умолчанию.
+    void createStoresColorIconAndTagsWhenGiven() {
         authenticated()
-            .body(new ProjectRequest(projectName, "Colored"))
+            .body(new ProjectRequest("Color Project", "Colored", "#9B59B6", "palette", List.of("ui", "brand")))
         .when()
             .post("/api/projects")
         .then()
             .statusCode(201)
-            .body("name", equalTo(projectName))
-            .body("color", equalTo("#4A90D9"));
+            .body("name", equalTo("Color Project"))
+            .body("color", equalTo("#9B59B6"))
+            .body("icon", equalTo("palette"))
+            .body("tags", contains("ui", "brand"));
+    }
+
+    @Test
+    @Order(7)
+    void createWithoutAppearanceFallsBackToDefaultColorAndEmptyTags() {
+        authenticated()
+            .body(new ProjectRequest("Plain Project", null))
+        .when()
+            .post("/api/projects")
+        .then()
+            .statusCode(201)
+            .body("color", equalTo("#4A90D9"))
+            .body("icon", nullValue())
+            .body("tags", empty());
+    }
+
+    @Test
+    @Order(8)
+    void createRejectsAMalformedColor() {
+        authenticated()
+            .body(new ProjectRequest("Bad Color Project", null, "purple", null, null))
+        .when()
+            .post("/api/projects")
+        .then()
+            .statusCode(400);
     }
 
     private RequestSpecification authenticated() {

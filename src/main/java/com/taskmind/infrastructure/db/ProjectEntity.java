@@ -4,6 +4,7 @@ import com.taskmind.domain.model.Project;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.List;
 
 @Entity
 @Table(name = "projects")
@@ -24,6 +25,11 @@ public class ProjectEntity extends PanacheEntityBase {
 
     public String color;
     public String icon;
+
+    @Convert(converter = StringListConverter.class)
+    @Column(length = 1000)
+    public List<String> tags;
+
     public boolean isActive;
 
     public Long createdAt;
@@ -49,6 +55,7 @@ public class ProjectEntity extends PanacheEntityBase {
             ownerUserId,
             color,
             icon,
+            tags != null ? tags : List.of(),
             isActive,
             createdAt != null ? Instant.ofEpochMilli(createdAt) : null,
             updatedAt != null ? Instant.ofEpochMilli(updatedAt) : null
@@ -63,6 +70,7 @@ public class ProjectEntity extends PanacheEntityBase {
         entity.ownerUserId = project.ownerUserId();
         entity.color = project.color();
         entity.icon = project.icon();
+        entity.tags = project.tags() != null ? project.tags() : List.of();
         entity.isActive = project.isActive();
         entity.createdAt = project.createdAt() != null ? project.createdAt().toEpochMilli() : null;
         entity.updatedAt = project.updatedAt() != null ? project.updatedAt().toEpochMilli() : null;

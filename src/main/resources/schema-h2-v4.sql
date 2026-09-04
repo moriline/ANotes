@@ -38,6 +38,7 @@ CREATE TABLE projects (
     ownerUserId INTEGER NOT NULL,
     color VARCHAR(7) DEFAULT '#4A90D9',
     icon VARCHAR(50),
+    tags VARCHAR(1000), -- JSON Array: ["backend", "q1-2026"]
     isActive BOOLEAN DEFAULT TRUE,
     createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
     updatedAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),

@@ -2,11 +2,13 @@ package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.ProjectRequest;
 import com.taskmind.api.dto.ProjectResponse;
+import com.taskmind.api.dto.ProjectUpdateRequest;
 import com.taskmind.application.service.AuthService;
 import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.application.service.PermissionService;
 import com.taskmind.application.service.ProjectService;
 import com.taskmind.domain.model.Action;
+import com.taskmind.domain.model.Project;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -31,8 +33,45 @@ public class ProjectResource {
     @POST
     public Response create(@Valid ProjectRequest request, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
-        var created = service.createProject(request.name(), request.description(), userId);
+        var created = service.createProject(request.name(), request.description(),
+            request.color(), request.icon(), request.tags(), userId);
         return Response.status(Response.Status.CREATED).entity(ProjectResponse.fromDomain(created)).build();
+    }
+
+    /**
+     * Частичное обновление карточки проекта: имя, описание, цвет, иконка, тэги.
+     * Нужно право {@code project:update} (владелец проекта или роль Admin) —
+     * как и на удаление. Поля со значением {@code null} не трогаются.
+     */
+    @PATCH
+    @Path("/{id}")
+    public ProjectResponse update(@PathParam("id") Integer id,
+                                  @Valid ProjectUpdateRequest req,
+                                  @Context SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+
+        Project project = service.findById(id)
+            .orElseThrow(() -> new NotFoundException("Проект " + id + " не найден"));
+
+        if (!permissionService.canPerform(userId, id, Action.PROJECT_UPDATE)) {
+            throw new ForbiddenException("Нет права менять проект " + id);
+        }
+        return ProjectResponse.fromDomain(service.updateProject(project, req, userId));
+    }
+
+    /** Тэги проекта отдельным списком. Видит любой участник проекта. */
+    @GET
+    @Path("/{id}/tags")
+    public List<String> tags(@PathParam("id") Integer id, @Context SecurityContext sec) {
+        Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
+
+        Project project = service.findById(id)
+            .orElseThrow(() -> new NotFoundException("Проект " + id + " не найден"));
+
+        if (!projectAccessService.canAccess(userId, id)) {
+            throw new ForbiddenException("Нет доступа к проекту " + id);
+        }
+        return project.tags();
     }
 
     @GET

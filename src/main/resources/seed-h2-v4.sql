@@ -18,10 +18,10 @@ INSERT INTO users (username, email, password, displayName, avatarUrl, isAdmin) V
 ('tester_olga', 'olga@taskmanager.com', '$2a$10$hash...', 'Olga Tester', 'https://i.pravatar.cc/150?u=olga', FALSE);
 
 -- 2. Projects
-INSERT INTO projects (name, description, ownerUserId, color, icon) VALUES
-('Web Site Redesign', 'Redesign of the corporate website', 1, '#4A90D9', 'globe'),
-('Mobile App API', 'Backend development for iOS/Android app', 1, '#2ECC71', 'server'),
-('Marketing Q1', 'Q1 Marketing campaign planning', 2, '#E74C3C', 'bullhorn');
+INSERT INTO projects (name, description, ownerUserId, color, icon, tags) VALUES
+('Web Site Redesign', 'Redesign of the corporate website', 1, '#4A90D9', 'globe', '["frontend","design"]'),
+('Mobile App API', 'Backend development for iOS/Android app', 1, '#2ECC71', 'server', '["backend","mobile","api"]'),
+('Marketing Q1', 'Q1 Marketing campaign planning', 2, '#E74C3C', 'bullhorn', '["marketing"]');
 
 -- 3. Project Members
 -- Project 1: Admin, Anna (Writer), Max (Writer), Olga (Reader)
