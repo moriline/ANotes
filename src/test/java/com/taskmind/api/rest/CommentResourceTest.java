@@ -3,10 +3,12 @@ package com.taskmind.api.rest;
 import com.taskmind.TestDataCleanup;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.Map;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
@@ -14,91 +16,69 @@ public class CommentResourceTest {
 
     @Inject TestDataCleanup cleanup;
 
-    /** Тест работает с taskId=1 из сида и рассчитывает на пустой список комментариев в конце. */
+    private String token;
+    private Integer taskId;
+
+    /** Свой проект и задача: создатель попадает в участники автоматически, доступ есть. */
     @BeforeEach
-    void resetData() {
+    void setUp() {
         cleanup.clearAll();
+        long ts = System.nanoTime();
+        token = TestAuthHelper.registerAndLogin("comment-" + ts, "comment-" + ts + "@test.com", "Pass123!");
+
+        Integer projectId = auth().body("{\"name\": \"comment-project-" + ts + "\"}")
+            .post("/api/projects").then().statusCode(201)
+            .extract().jsonPath().getInt("id");
+        taskId = auth().body("{\"title\": \"comment task\"}")
+            .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
+            .extract().jsonPath().getInt("id");
     }
 
     @Test
-    public void testCommentLifecycle() {
-        String token = TestAuthHelper.registerAndLogin("comment_user", "comment@test.com", "password");
-
-        // Сид уже кладёт комментарии на задачу 1 — считаем их, чтобы проверять дельту.
-        int seededComments = TestAuthHelper.authenticated(token)
-            .get("/api/tasks/1/comments")
-            .then()
-            .statusCode(200)
-            .extract().jsonPath().getList("$").size();
-
-        // 1. Создать комментарий (POST /api/tasks/{taskId}/comments)
-        Map<String, String> commentBody = Map.of("content", "Initial comment");
-
-        Integer commentId = TestAuthHelper.authenticated(token)
-            .contentType(ContentType.JSON)
-            .body(commentBody)
-            .post("/api/tasks/1/comments")
-            .then()
-            .statusCode(201)
+    public void commentLifecycle() {
+        Integer commentId = auth()
+            .body(Map.of("content", "Initial comment"))
+            .post("/api/tasks/" + taskId + "/comments")
+            .then().statusCode(201)
             .extract().path("id");
 
-        // 2. Редактировать комментарий (PUT /api/comments/{commentId})
-        Map<String, String> updateBody = Map.of("content", "Updated comment");
-
-        TestAuthHelper.authenticated(token)
-            .contentType(ContentType.JSON)
-            .body(updateBody)
+        auth().body(Map.of("content", "Updated comment"))
             .put("/api/comments/" + commentId)
-            .then()
-            .statusCode(200)
+            .then().statusCode(200)
             .body("content", is("Updated comment"))
             .body("isEdited", is(true));
 
-        // 3. Удалить комментарий (DELETE /api/comments/{commentId})
-        TestAuthHelper.authenticated(token)
-            .delete("/api/comments/" + commentId)
-            .then()
-            .statusCode(204);
+        auth().delete("/api/comments/" + commentId).then().statusCode(204);
 
-        // 4. Проверить отсутствие
-        TestAuthHelper.authenticated(token)
-            .get("/api/tasks/1/comments")
-            .then()
-            .statusCode(200)
-            .body("size()", is(seededComments))
+        auth().get("/api/tasks/" + taskId + "/comments")
+            .then().statusCode(200)
             .body("id", not(hasItem(commentId)));
     }
 
     @Test
     public void visibilityDefaultsToPublicAndRoundTrips() {
-        String token = TestAuthHelper.registerAndLogin("vis_user", "vis@test.com", "password");
-
         // Без поля в запросе — PUBLIC.
-        TestAuthHelper.authenticated(token)
-            .contentType(ContentType.JSON)
-            .body(Map.of("content", "no visibility given"))
-            .post("/api/tasks/1/comments")
-            .then()
-            .statusCode(201)
+        auth().body(Map.of("content", "no visibility given"))
+            .post("/api/tasks/" + taskId + "/comments")
+            .then().statusCode(201)
             .body("visibility", is("PUBLIC"));
 
-        // Явный INTERNAL сохраняется и виден в списке.
-        Integer internalId = TestAuthHelper.authenticated(token)
-            .contentType(ContentType.JSON)
+        // Явный INTERNAL сохраняется.
+        Integer internalId = auth()
             .body(Map.of("content", "budget note", "visibility", "INTERNAL"))
-            .post("/api/tasks/1/comments")
-            .then()
-            .statusCode(201)
+            .post("/api/tasks/" + taskId + "/comments")
+            .then().statusCode(201)
             .body("visibility", is("INTERNAL"))
             .extract().path("id");
 
         // Правка текста без visibility в запросе не сбрасывает INTERNAL на PUBLIC.
-        TestAuthHelper.authenticated(token)
-            .contentType(ContentType.JSON)
-            .body(Map.of("content", "budget note (fixed)"))
+        auth().body(Map.of("content", "budget note (fixed)"))
             .put("/api/comments/" + internalId)
-            .then()
-            .statusCode(200)
+            .then().statusCode(200)
             .body("visibility", is("INTERNAL"));
+    }
+
+    private RequestSpecification auth() {
+        return given().header("Authorization", "Bearer " + token).contentType(ContentType.JSON);
     }
 }

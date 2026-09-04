@@ -22,11 +22,12 @@ public class CommentService {
     private static final int EXCERPT_LENGTH = 80;
 
     @Inject TaskRepository taskRepository;
+    @Inject ProjectAccessService projectAccess;
     @Inject ActivityLogService activityLog;
 
     @Transactional
     public CommentResponse addComment(Integer taskId, Integer userId, String content, Visibility visibility) {
-        Task task = requireTask(taskId);
+        Task task = requireAccessibleTask(taskId, userId);
         Visibility vis = visibility != null ? visibility : Visibility.PUBLIC;
 
         var entity = new CommentEntity();
@@ -55,6 +56,7 @@ public class CommentService {
     public CommentResponse updateComment(Integer commentId, Integer userId, String content, Visibility visibility) {
         CommentEntity entity = CommentEntity.findById(commentId);
         if (entity == null) throw new ResourceNotFoundException("Комментарий " + commentId + " не найден");
+        Task task = requireAccessibleTask(entity.taskId, userId);
         if (!entity.userId.equals(userId)) throw new AccessDeniedException("Редактировать можно только свой комментарий");
 
         entity.content = content;
@@ -64,7 +66,6 @@ public class CommentService {
         entity.isEdited = true;
         entity.updatedAt = Instant.now().toEpochMilli();
 
-        Task task = requireTask(entity.taskId);
         activityLog.record(task.projectId(), entity.taskId, userId,
             ActivityAction.COMMENT_EDITED, details(entity.id, content), Visibility.fromString(entity.visibility));
         return mapToResponse(entity);
@@ -75,9 +76,8 @@ public class CommentService {
         CommentEntity entity = CommentEntity.findById(commentId);
         // Молчаливый выход отвечал 204, то есть «удалил» несуществующее.
         if (entity == null) throw new ResourceNotFoundException("Комментарий " + commentId + " не найден");
+        Task task = requireAccessibleTask(entity.taskId, userId);
         if (!entity.userId.equals(userId)) throw new AccessDeniedException("Удалить можно только свой комментарий");
-
-        Task task = requireTask(entity.taskId);
 
         // Событие пишем до физического удаления; тело в ленту не переносим — удалённый
         // текст не должен всплывать в истории (в т. ч. по требованиям об удалении данных).
@@ -89,10 +89,21 @@ public class CommentService {
         entity.delete();
     }
 
-    /** Комментарий всегда висит на задаче (FK с каскадом), но проверка даёт понятный 404. */
-    private Task requireTask(Integer taskId) {
-        return taskRepository.findById(taskId)
+    /**
+     * Задача существует (иначе 404) и вызывающий — участник её проекта (иначе 403).
+     * Создатель проекта попадает в участники автоматически, так что для своих
+     * задач эта проверка всегда проходит. Ту же проверку делает TaskAccessGuard в
+     * api.rest, но {@code PUT/DELETE /api/comments/{id}} приходит без taskId в
+     * пути, и ресурс проверить проект сам не может — поэтому она продублирована
+     * здесь, на уровне сервиса.
+     */
+    private Task requireAccessibleTask(Integer taskId, Integer userId) {
+        Task task = taskRepository.findById(taskId)
             .orElseThrow(() -> new ResourceNotFoundException("Задача " + taskId + " не найдена"));
+        if (!projectAccess.canAccess(userId, task.projectId())) {
+            throw new AccessDeniedException("Нет доступа к проекту " + task.projectId());
+        }
+        return task;
     }
 
     private static Map<String, Object> details(Integer commentId, String content) {
