@@ -723,6 +723,39 @@ paths:
           description: Not Allowed
       security:
       - bearerAuth: []
+  /api/reports/time:
+    get:
+      tags:
+      - Time Report Resource
+      parameters:
+      - name: month
+        in: query
+        schema:
+          format: int32
+          type: integer
+      - name: userId
+        in: query
+        schema:
+          format: int32
+          type: integer
+      - name: year
+        in: query
+        schema:
+          format: int32
+          type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeReportResponse"
+        "401":
+          description: Not Authorized
+        "403":
+          description: Not Allowed
+      security:
+      - bearerAuth: []
   /api/tasks/{taskId}/activity:
     get:
       tags:
@@ -1403,6 +1436,23 @@ components:
           type: boolean
         isClosed:
           type: boolean
+    ProjectTimeLine:
+      type: object
+      properties:
+        projectId:
+          format: int32
+          type: integer
+        projectName:
+          type: string
+        totalSeconds:
+          format: int64
+          type: integer
+        totalHours:
+          format: double
+          type: number
+        entryCount:
+          format: int32
+          type: integer
     RegisterRequest:
       required:
       - username
@@ -1574,6 +1624,42 @@ components:
           type: integer
         description:
           type: string
+        startTime:
+          format: int64
+          type: integer
+    TimeReportResponse:
+      type: object
+      properties:
+        userId:
+          format: int32
+          type: integer
+        username:
+          type: string
+        year:
+          format: int32
+          type: integer
+        month:
+          format: int32
+          type: integer
+        from:
+          format: int64
+          type: integer
+        to:
+          format: int64
+          type: integer
+        totalSeconds:
+          format: int64
+          type: integer
+        totalHours:
+          format: double
+          type: number
+        entryCount:
+          format: int32
+          type: integer
+        byProject:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectTimeLine"
     UUID:
       format: uuid
       pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"

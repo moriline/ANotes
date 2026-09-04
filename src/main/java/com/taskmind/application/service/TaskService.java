@@ -205,9 +205,14 @@ public class TaskService {
         repository.deleteById(taskId);
     }
 
+    /**
+     * Списывает время. {@code startTimeMillis} — момент, к которому относится
+     * работа; {@code null} означает «сейчас» (запись текущим временем).
+     */
     @Transactional
-    public TimeEntry logTime(Integer taskId, Integer userId, long seconds, String description) {
-        var entry = new TimeEntry(null, taskId, userId, seconds, description, Instant.now(), null);
+    public TimeEntry logTime(Integer taskId, Integer userId, long seconds, String description, Long startTimeMillis) {
+        Instant startTime = startTimeMillis != null ? Instant.ofEpochMilli(startTimeMillis) : Instant.now();
+        var entry = new TimeEntry(null, taskId, userId, seconds, description, startTime, null);
         return timeEntryRepository.save(entry);
     }
 

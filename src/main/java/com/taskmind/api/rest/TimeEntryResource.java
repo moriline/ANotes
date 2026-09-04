@@ -29,7 +29,7 @@ public class TimeEntryResource {
     @POST
     public TimeEntry logTime(@PathParam("taskId") Integer taskId, @Valid TimeEntryRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
-        return taskService.logTime(taskId, userId, req.seconds(), req.description());
+        return taskService.logTime(taskId, userId, req.seconds(), req.description(), req.startTime());
     }
 
     @GET
