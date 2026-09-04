@@ -49,7 +49,7 @@ public class TestDataCleanupTest {
 
     @Test
     public void shouldKeepReferenceRolesUntouched() {
-        assertEquals(5, ProjectRoleEntity.count(), "справочник ролей чистить нельзя");
+        assertEquals(6, ProjectRoleEntity.count(), "справочник ролей чистить нельзя");
         ProjectRoleEntity admin = ProjectRoleEntity.findById(1);
         assertNotNull(admin);
         assertEquals("Admin", admin.roleName);

@@ -2,8 +2,10 @@ package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.DiscussionBlockRequest;
 import com.taskmind.api.dto.DiscussionBlockResponse;
+import com.taskmind.application.service.PermissionService;
 import com.taskmind.application.service.TaskService;
 import com.taskmind.application.service.UserService;
+import com.taskmind.domain.model.Action;
 import com.taskmind.domain.model.BlockType;
 import com.taskmind.domain.model.DiscussionBlock;
 import com.taskmind.domain.model.Task;
@@ -35,6 +37,9 @@ import java.util.UUID;
  * <p>{@code author} — свободная строка, а не userId, поэтому агенту не нужен
  * отдельный аккаунт: он подписывается своим именем под токеном того, от чьего
  * имени работает.
+ *
+ * <p>Читать обсуждение может любой участник проекта; писать (POST/PUT) — только с
+ * правом {@code task:update}, то есть не Guest и не Client.
  */
 @Path("/api/tasks/{taskId}/discussion")
 @Produces(MediaType.APPLICATION_JSON)
@@ -45,6 +50,7 @@ public class TaskDiscussionResource {
     @Inject TaskService taskService;
     @Inject UserService userService;
     @Inject TaskAccessGuard guard;
+    @Inject PermissionService permissionService;
 
     @GET
     public List<DiscussionBlockResponse> list(@PathParam("taskId") Integer taskId, @Context SecurityContext sec) {
@@ -57,6 +63,7 @@ public class TaskDiscussionResource {
                         @Valid DiscussionBlockRequest req,
                         @Context SecurityContext sec) {
         Task task = guard.requireAccessibleTask(taskId, sec);
+        requireCanWrite(task, sec);
 
         UUID blockId = resolveBlockId(task, req.id());
         int level = resolveLevel(task, req.parentId());
@@ -91,6 +98,7 @@ public class TaskDiscussionResource {
                                                  List<DiscussionBlockRequest> body,
                                                  @Context SecurityContext sec) {
         Task task = guard.requireAccessibleTask(taskId, sec);
+        requireCanWrite(task, sec);
         List<DiscussionBlockRequest> requested = body == null ? List.of() : body;
 
         List<UUID> ids = assignIds(requested);
@@ -203,5 +211,12 @@ public class TaskDiscussionResource {
 
     private String callerName(Integer callerId) {
         return userService.findById(callerId).map(user -> user.username()).orElse(String.valueOf(callerId));
+    }
+
+    /** Писать в обсуждение — как и править задачу: право {@code task:update}. */
+    private void requireCanWrite(Task task, SecurityContext sec) {
+        if (!permissionService.canPerform(guard.callerId(sec), task.projectId(), Action.TASK_UPDATE)) {
+            throw new ForbiddenException("Нужно право task:update, чтобы писать в обсуждение задачи");
+        }
     }
 }

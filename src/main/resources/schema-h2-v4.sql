@@ -54,12 +54,17 @@ CREATE TABLE projectRoles (
     permissions VARCHAR(1000) -- JSON string: {"canCreate": true, ...}
 );
 
+-- roleId фиксированы: 1=Admin, 2=Manager, 3=Developer, 4=Guest, 5=Disabled, 6=Client.
+-- Тесты и seed завязаны на эти номера — новые роли только дописывать в конец.
+-- Client (заказчик) по правам совпадает с Guest, но это внешняя роль: код скрывает
+-- от неё INTERNAL/SYSTEM-комментарии и события (см. PermissionService.seesInternalContent).
 INSERT INTO projectRoles (roleName, description, permissions) VALUES
 ('Admin', 'Полный доступ ко всем функциям проекта', '["task:create","task:read","task:update","task:delete","task:assign","project:read","project:update","project:delete","project:manage_members","role:manage","user:manage"]'),
 ('Manager', 'Управление задачами и участниками', '["task:create","task:read","task:update","task:delete","task:assign","project:read","project:manage_members"]'),
 ('Developer', 'Разработка и работа с задачами', '["task:create","task:read","task:update","task:assign","project:read"]'),
 ('Guest', 'Только чтение', '["task:read","project:read"]'),
-('Disabled', 'Доступ закрыт полностью', '[]');
+('Disabled', 'Доступ закрыт полностью', '[]'),
+('Client', 'Заказчик: просмотр задач и публичные комментарии, без внутренней переписки и событий', '["task:read","project:read"]');
 
 -- ============================================================
 -- 4. PROJECT MEMBERS

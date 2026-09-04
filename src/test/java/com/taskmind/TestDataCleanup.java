@@ -21,7 +21,7 @@ import java.util.List;
  * идентификаторами, независимо от соседей по прогону.
  *
  * <p>{@code projectRoles} намеренно не трогаем: это справочник, который создаёт
- * DDL-скрипт, и тесты завязаны на фиксированные roleId 1..5.
+ * DDL-скрипт, и тесты завязаны на фиксированные roleId 1..6.
  */
 @ApplicationScoped
 public class TestDataCleanup {

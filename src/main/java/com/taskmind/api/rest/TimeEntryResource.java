@@ -1,7 +1,10 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.TimeEntryRequest;
+import com.taskmind.application.service.PermissionService;
 import com.taskmind.application.service.TaskService;
+import com.taskmind.domain.model.Action;
+import com.taskmind.domain.model.Task;
 import com.taskmind.domain.model.TimeEntry;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -19,17 +22,23 @@ public class TimeEntryResource {
 
     @Inject TaskService taskService;
     @Inject TaskAccessGuard guard;
+    @Inject PermissionService permissionService;
 
     /**
      * Списывает время от имени вызывающего. Автор определяется по токену, а не по
-     * телу запроса; списать и посмотреть время можно только по задаче проекта, к
-     * которому у вызывающего есть доступ (раньше проверки не было — любой
-     * залогиненный писал часы на любую задачу).
+     * телу запроса. Списывать время может тот, кто работает над задачей, — право
+     * {@code task:update} (не Guest и не Client); смотреть суммарное время может
+     * любой участник проекта. Раньше и то и другое было доступно любому
+     * залогиненному пользователю.
      */
     @POST
     public TimeEntry logTime(@PathParam("taskId") Integer taskId, @Valid TimeEntryRequest req, @Context SecurityContext sec) {
-        guard.requireAccessibleTask(taskId, sec);
-        return taskService.logTime(taskId, guard.callerId(sec), req.seconds(), req.description(), req.startTime());
+        Task task = guard.requireAccessibleTask(taskId, sec);
+        Integer callerId = guard.callerId(sec);
+        if (!permissionService.canPerform(callerId, task.projectId(), Action.TASK_UPDATE)) {
+            throw new ForbiddenException("Нужно право task:update, чтобы списывать время на задачу");
+        }
+        return taskService.logTime(taskId, callerId, req.seconds(), req.description(), req.startTime());
     }
 
     @GET

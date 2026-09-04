@@ -3,6 +3,8 @@ package com.taskmind.api.rest;
 import com.taskmind.api.dto.CommentRequest;
 import com.taskmind.api.dto.CommentResponse;
 import com.taskmind.application.service.CommentService;
+import com.taskmind.application.service.PermissionService;
+import com.taskmind.domain.model.Task;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -34,6 +36,7 @@ public class TaskCommentResource {
 
     @Inject CommentService commentService;
     @Inject TaskAccessGuard guard;
+    @Inject PermissionService permissionService;
 
     @POST
     public Response addComment(@PathParam("taskId") Integer taskId, @Valid CommentRequest req, @Context SecurityContext sec) {
@@ -44,7 +47,8 @@ public class TaskCommentResource {
 
     @GET
     public List<CommentResponse> getComments(@PathParam("taskId") Integer taskId, @Context SecurityContext sec) {
-        guard.requireAccessibleTask(taskId, sec);
-        return commentService.getCommentsByTask(taskId);
+        Task task = guard.requireAccessibleTask(taskId, sec);
+        boolean includeInternal = permissionService.seesInternalContent(guard.callerId(sec), task.projectId());
+        return commentService.getCommentsByTask(taskId, includeInternal);
     }
 }

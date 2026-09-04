@@ -28,6 +28,12 @@ public class MembershipService {
     /** roleId роли Admin из справочника projectRoles. */
     public static final int ROLE_ADMIN = 1;
 
+    /**
+     * roleId роли Client (заказчик). Внешняя роль: по правам как Guest, но код
+     * прячет от неё внутренний контент — см. {@link PermissionService#seesInternalContent}.
+     */
+    public static final int ROLE_CLIENT = 6;
+
     @Inject MembershipRepository membershipRepository;
     @Inject ProjectRepository projectRepository;
     @Inject ActivityLogService activityLog;

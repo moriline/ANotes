@@ -71,6 +71,10 @@ public class TaskResource {
      * назначить, ни сдвинуть по доске — {@code assignedUserId} и {@code statusId}
      * существовали только в базе.
      *
+     * <p>Нужно право {@code task:update} (Admin, Manager, Developer). Раньше метод
+     * пускал любого участника проекта — читающие роли Guest и Client могли молча
+     * переименовать или заархивировать чужую задачу.
+     *
      * <p>Поля со значением {@code null} остаются без изменений (см. TaskUpdateRequest).
      */
     @PATCH
@@ -79,7 +83,7 @@ public class TaskResource {
                                @PathParam("taskId") Integer taskId,
                                TaskUpdateRequest req,
                                @Context SecurityContext sec) {
-        Integer userId = requireProjectAccess(projectId, sec);
+        Integer userId = requirePermission(projectId, Action.TASK_UPDATE, sec);
         Task task = requireTaskOfProject(projectId, taskId);
 
         validateAssignee(projectId, req.assignedUserId());

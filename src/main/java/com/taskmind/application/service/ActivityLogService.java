@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,12 @@ public class ActivityLogService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** Что показываем заказчику. */
+    private static final List<String> PUBLIC_ONLY = List.of(Visibility.PUBLIC.name());
+    /** Что показываем команде. */
+    private static final List<String> EVERYTHING =
+        Arrays.stream(Visibility.values()).map(Enum::name).toList();
+
     @Inject UserService userService;
 
     /** Событие с видимостью по умолчанию — {@link Visibility#PUBLIC}. */
@@ -60,18 +67,30 @@ public class ActivityLogService {
         entity.persist();
     }
 
-    public List<ActivityResponse> listByProject(Integer projectId, int limit, int offset) {
+    /**
+     * @param includeInternal видит ли вызывающий внутренние события; {@code false}
+     *        для заказчика — тогда в ленту попадают только {@code PUBLIC}-записи.
+     *        Фильтр в запросе, а не после выборки: иначе постраничность отдавала бы
+     *        меньше {@code limit} строк.
+     */
+    public List<ActivityResponse> listByProject(Integer projectId, int limit, int offset, boolean includeInternal) {
         return toResponses(ActivityLogEntity.<ActivityLogEntity>find(
-                "projectId = ?1 order by createdAt desc, id desc", projectId)
+                "projectId = ?1 and visibility in ?2 order by createdAt desc, id desc",
+                projectId, visibilityScope(includeInternal))
             .range(offset, offset + limit - 1)
             .list());
     }
 
-    public List<ActivityResponse> listByTask(Integer taskId, int limit, int offset) {
+    public List<ActivityResponse> listByTask(Integer taskId, int limit, int offset, boolean includeInternal) {
         return toResponses(ActivityLogEntity.<ActivityLogEntity>find(
-                "taskId = ?1 order by createdAt desc, id desc", taskId)
+                "taskId = ?1 and visibility in ?2 order by createdAt desc, id desc",
+                taskId, visibilityScope(includeInternal))
             .range(offset, offset + limit - 1)
             .list());
+    }
+
+    private static List<String> visibilityScope(boolean includeInternal) {
+        return includeInternal ? EVERYTHING : PUBLIC_ONLY;
     }
 
     private List<ActivityResponse> toResponses(List<ActivityLogEntity> entities) {

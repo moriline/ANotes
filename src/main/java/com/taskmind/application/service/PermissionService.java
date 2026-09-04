@@ -59,6 +59,25 @@ public class PermissionService {
         return checkRoleAndHierarchy(roleId, action, new HashSet<>());
     }
 
+    /**
+     * Видит ли пользователь внутренний контент проекта — {@code INTERNAL}/{@code SYSTEM}
+     * комментарии и события ленты. Не видит его только заказчик ({@link MembershipService#ROLE_CLIENT}):
+     * он внешний, ему доступна лишь публичная переписка. Владелец проекта и все
+     * командные роли (в т. ч. Guest) видят всё; пользователь без членства сюда не
+     * доходит — доступ к проекту проверяется раньше, поэтому дефолт {@code true}.
+     */
+    public boolean seesInternalContent(Integer userId, Integer projectId) {
+        boolean isOwner = projectRepository.findById(projectId)
+            .map(project -> userId.equals(project.ownerUserId()))
+            .orElse(false);
+        if (isOwner) {
+            return true;
+        }
+        return membershipRepository.findByUserAndProject(userId, projectId)
+            .map(membership -> membership.roleId() != MembershipService.ROLE_CLIENT)
+            .orElse(true);
+    }
+
     private boolean checkRoleAndHierarchy(Integer roleId, Action action, Set<Integer> visited) {
         if (visited.contains(roleId)) return false;
         visited.add(roleId);

@@ -23,12 +23,13 @@ public class CommentService {
 
     @Inject TaskRepository taskRepository;
     @Inject ProjectAccessService projectAccess;
+    @Inject PermissionService permissionService;
     @Inject ActivityLogService activityLog;
 
     @Transactional
     public CommentResponse addComment(Integer taskId, Integer userId, String content, Visibility visibility) {
         Task task = requireAccessibleTask(taskId, userId);
-        Visibility vis = visibility != null ? visibility : Visibility.PUBLIC;
+        Visibility vis = effectiveVisibility(userId, task.projectId(), visibility);
 
         var entity = new CommentEntity();
         entity.taskId = taskId;
@@ -42,8 +43,15 @@ public class CommentService {
         return mapToResponse(entity);
     }
 
-    public List<CommentResponse> getCommentsByTask(Integer taskId) {
-        return CommentEntity.<CommentEntity>list("taskId", taskId).stream()
+    /**
+     * @param includeInternal видит ли вызывающий внутренние комментарии;
+     *        {@code false} для заказчика — он получает только {@code PUBLIC}.
+     */
+    public List<CommentResponse> getCommentsByTask(Integer taskId, boolean includeInternal) {
+        var comments = includeInternal
+            ? CommentEntity.<CommentEntity>list("taskId", taskId)
+            : CommentEntity.<CommentEntity>list("taskId = ?1 and visibility = ?2", taskId, Visibility.PUBLIC.name());
+        return comments.stream()
             .map(this::mapToResponse)
             .collect(Collectors.toList());
     }
@@ -61,7 +69,7 @@ public class CommentService {
 
         entity.content = content;
         if (visibility != null) {
-            entity.visibility = visibility.name();
+            entity.visibility = effectiveVisibility(userId, task.projectId(), visibility).name();
         }
         entity.isEdited = true;
         entity.updatedAt = Instant.now().toEpochMilli();
@@ -104,6 +112,18 @@ public class CommentService {
             throw new AccessDeniedException("Нет доступа к проекту " + task.projectId());
         }
         return task;
+    }
+
+    /**
+     * Заказчик не создаёт внутренние заметки: любой запрошенный им {@code INTERNAL}/
+     * {@code SYSTEM} схлопывается в {@code PUBLIC}. Отсутствие значения — тоже {@code PUBLIC}.
+     */
+    private Visibility effectiveVisibility(Integer userId, Integer projectId, Visibility requested) {
+        Visibility vis = requested != null ? requested : Visibility.PUBLIC;
+        if (vis != Visibility.PUBLIC && !permissionService.seesInternalContent(userId, projectId)) {
+            return Visibility.PUBLIC;
+        }
+        return vis;
     }
 
     private static Map<String, Object> details(Integer commentId, String content) {

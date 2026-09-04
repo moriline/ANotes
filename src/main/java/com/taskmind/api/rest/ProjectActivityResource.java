@@ -3,6 +3,7 @@ package com.taskmind.api.rest;
 import com.taskmind.api.dto.ActivityResponse;
 import com.taskmind.application.service.ActivityLogService;
 import com.taskmind.application.service.AuthService;
+import com.taskmind.application.service.PermissionService;
 import com.taskmind.application.service.ProjectAccessService;
 import com.taskmind.application.service.ProjectService;
 import jakarta.annotation.security.RolesAllowed;
@@ -25,6 +26,7 @@ public class ProjectActivityResource {
     @Inject AuthService authService;
     @Inject ProjectService projectService;
     @Inject ProjectAccessService projectAccessService;
+    @Inject PermissionService permissionService;
     @Inject ActivityLogService activityLog;
 
     @GET
@@ -44,6 +46,7 @@ public class ProjectActivityResource {
         return activityLog.listByProject(
             projectId,
             PagingParams.limit(limit, ActivityLogService.DEFAULT_LIMIT, ActivityLogService.MAX_LIMIT),
-            PagingParams.offset(offset));
+            PagingParams.offset(offset),
+            permissionService.seesInternalContent(userId, projectId));
     }
 }
