@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
@@ -38,14 +41,14 @@ class FindResourceTest {
     void prepareData() {
         // Create Project
         Response projResp = authenticated()
-            .body("{\"name\": \"find-project\"}")
+            .body(new ProjectRequest("find-project", null))
         .when().post("/api/projects")
         .then().statusCode(201).extract().response();
         projectId = projResp.jsonPath().getInt("id");
 
         // Create Task
         Response taskResp = authenticated()
-            .body("{\"title\": \"Find Me\", \"description\": \"Searching for this task\"}")
+            .body(new TaskRequest("Find Me", "Searching for this task", null))
         .when().post("/api/projects/" + projectId + "/tasks")
         .then().statusCode(201).extract().response();
         taskId = taskResp.jsonPath().getInt("id");
@@ -54,9 +57,12 @@ class FindResourceTest {
     @Test
     @Order(2)
     void shouldFindTaskByTitle() {
+        FindTasksRequest query = new FindTasksRequest();
+        query.titleSearch = "Find";
+
         authenticated()
             .contentType(ContentType.JSON)
-            .body("{\"titleSearch\": \"Find\"}")
+            .body(query)
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -67,9 +73,12 @@ class FindResourceTest {
     @Test
     @Order(3)
     void shouldFindTaskByProjectId() {
+        FindTasksRequest query = new FindTasksRequest();
+        query.projectId = projectId;
+
         authenticated()
             .contentType(ContentType.JSON)
-            .body("{\"projectId\": " + projectId + "}")
+            .body(query)
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -80,9 +89,12 @@ class FindResourceTest {
     @Test
     @Order(4)
     void shouldReturnEmptyForNonexistentTitle() {
+        FindTasksRequest query = new FindTasksRequest();
+        query.titleSearch = "NoSuchTaskExists";
+
         authenticated()
             .contentType(ContentType.JSON)
-            .body("{\"titleSearch\": \"NoSuchTaskExists\"}")
+            .body(query)
         .when().post("/api/find")
         .then()
             .statusCode(200)

@@ -1,6 +1,10 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.DiscussionBlockRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.domain.model.BlockType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -8,6 +12,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static io.restassured.RestAssured.given;
@@ -35,21 +40,21 @@ public class TaskDiscussionReplaceTest {
         ownerToken = TestAuthHelper.registerAndLogin(ownerUsername, ownerUsername + "@test.com", "Pass123!");
         strangerToken = TestAuthHelper.registerAndLogin("put-stranger-" + ts, "put-stranger-" + ts + "@test.com", "Pass123!");
 
-        Integer projectId = auth(ownerToken).body("{\"name\": \"put-discussion-project\"}")
+        Integer projectId = auth(ownerToken).body(new ProjectRequest("put-discussion-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        taskId = auth(ownerToken).body("{\"title\": \"Задача с деревом\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("Задача с деревом", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
 
     @Test
     public void replacesTheWholeTree() {
-        auth(ownerToken).body("{\"content\": \"старое рассуждение\"}").post(path()).then().statusCode(201);
-        auth(ownerToken).body("{\"content\": \"ещё одно\"}").post(path()).then().statusCode(201);
+        auth(ownerToken).body(block("старое рассуждение")).post(path()).then().statusCode(201);
+        auth(ownerToken).body(block("ещё одно")).post(path()).then().statusCode(201);
 
-        auth(ownerToken).body("[{\"content\": \"единственный уцелевший блок\"}]")
+        auth(ownerToken).body(List.of(block("единственный уцелевший блок")))
             .put(path()).then()
             .statusCode(200)
             .body("$", hasSize(1))
@@ -66,11 +71,10 @@ public class TaskDiscussionReplaceTest {
         UUID root = UUID.randomUUID();
         UUID child = UUID.randomUUID();
 
-        auth(ownerToken).body("["
-                + "{\"id\": \"" + root + "\", \"content\": \"вопрос\"},"
-                + "{\"id\": \"" + child + "\", \"parentId\": \"" + root + "\", \"content\": \"ответ\"},"
-                + "{\"parentId\": \"" + child + "\", \"content\": \"уточнение\"}"
-                + "]")
+        auth(ownerToken).body(List.of(
+                new DiscussionBlockRequest(root, null, null, null, "вопрос"),
+                new DiscussionBlockRequest(child, root, null, null, "ответ"),
+                new DiscussionBlockRequest(null, child, null, null, "уточнение")))
             .put(path()).then()
             .statusCode(200)
             .body("level", contains(0, 1, 2))
@@ -79,12 +83,12 @@ public class TaskDiscussionReplaceTest {
 
     @Test
     public void keepsCreationTimeOfBlocksThatAlreadyExisted() {
-        var created = auth(ownerToken).body("{\"content\": \"первая редакция\"}")
+        var created = auth(ownerToken).body(block("первая редакция"))
             .post(path()).then().statusCode(201).extract().jsonPath();
-        String blockId = created.getString("id");
+        UUID blockId = UUID.fromString(created.getString("id"));
         String createdAt = created.getString("createdAt");
 
-        auth(ownerToken).body("[{\"id\": \"" + blockId + "\", \"content\": \"вторая редакция\"}]")
+        auth(ownerToken).body(List.of(new DiscussionBlockRequest(blockId, null, null, null, "вторая редакция")))
             .put(path()).then()
             .statusCode(200)
             .body("[0].content", equalTo("вторая редакция"))
@@ -93,18 +97,17 @@ public class TaskDiscussionReplaceTest {
 
     @Test
     public void emptyListClearsTheDiscussion() {
-        auth(ownerToken).body("{\"content\": \"будет стёрто\"}").post(path()).then().statusCode(201);
+        auth(ownerToken).body(block("будет стёрто")).post(path()).then().statusCode(201);
 
-        auth(ownerToken).body("[]").put(path()).then().statusCode(200).body("$", hasSize(0));
+        auth(ownerToken).body(List.of()).put(path()).then().statusCode(200).body("$", hasSize(0));
         auth(ownerToken).get(path()).then().statusCode(200).body("$", hasSize(0));
     }
 
     @Test
     public void authorAndTypeAreKeptOrDefaulted() {
-        auth(ownerToken).body("["
-                + "{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"вывод модели\"},"
-                + "{\"content\": \"без подписи\"}"
-                + "]")
+        auth(ownerToken).body(List.of(
+                new DiscussionBlockRequest(null, null, "claude", BlockType.DECISION, "вывод модели"),
+                block("без подписи")))
             .put(path()).then()
             .statusCode(200)
             .body("[0].author", equalTo("claude"))
@@ -116,16 +119,15 @@ public class TaskDiscussionReplaceTest {
     @Test
     public void duplicateIdsAreRejected() {
         UUID duplicate = UUID.randomUUID();
-        auth(ownerToken).body("["
-                + "{\"id\": \"" + duplicate + "\", \"content\": \"раз\"},"
-                + "{\"id\": \"" + duplicate + "\", \"content\": \"два\"}"
-                + "]")
+        auth(ownerToken).body(List.of(
+                new DiscussionBlockRequest(duplicate, null, null, null, "раз"),
+                new DiscussionBlockRequest(duplicate, null, null, null, "два")))
             .put(path()).then().statusCode(400);
     }
 
     @Test
     public void parentOutsideTheSubmittedTreeIsRejected() {
-        auth(ownerToken).body("[{\"parentId\": \"" + UUID.randomUUID() + "\", \"content\": \"сирота\"}]")
+        auth(ownerToken).body(List.of(new DiscussionBlockRequest(null, UUID.randomUUID(), null, null, "сирота")))
             .put(path()).then().statusCode(400);
     }
 
@@ -134,23 +136,22 @@ public class TaskDiscussionReplaceTest {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
 
-        auth(ownerToken).body("["
-                + "{\"id\": \"" + first + "\", \"parentId\": \"" + second + "\", \"content\": \"a\"},"
-                + "{\"id\": \"" + second + "\", \"parentId\": \"" + first + "\", \"content\": \"b\"}"
-                + "]")
+        auth(ownerToken).body(List.of(
+                new DiscussionBlockRequest(first, second, null, null, "a"),
+                new DiscussionBlockRequest(second, first, null, null, "b")))
             .put(path()).then().statusCode(400);
     }
 
     @Test
     public void blankContentIsRejected() {
-        auth(ownerToken).body("[{\"content\": \"   \"}]").put(path()).then().statusCode(400);
+        auth(ownerToken).body(List.of(block("   "))).put(path()).then().statusCode(400);
     }
 
     @Test
     public void failedReplaceLeavesTheOldTreeIntact() {
-        auth(ownerToken).body("{\"content\": \"должно уцелеть\"}").post(path()).then().statusCode(201);
+        auth(ownerToken).body(block("должно уцелеть")).post(path()).then().statusCode(201);
 
-        auth(ownerToken).body("[{\"content\": \"\"}]").put(path()).then().statusCode(400);
+        auth(ownerToken).body(List.of(block(""))).put(path()).then().statusCode(400);
 
         auth(ownerToken).get(path()).then()
             .statusCode(200)
@@ -160,17 +161,21 @@ public class TaskDiscussionReplaceTest {
 
     @Test
     public void strangerCannotReplace() {
-        auth(strangerToken).body("[{\"content\": \"чужое\"}]").put(path()).then().statusCode(403);
+        auth(strangerToken).body(List.of(block("чужое"))).put(path()).then().statusCode(403);
     }
 
     @Test
     public void unknownTaskGives404() {
-        auth(ownerToken).body("[{\"content\": \"x\"}]").put("/api/tasks/99999/discussion").then().statusCode(404);
+        auth(ownerToken).body(List.of(block("x"))).put("/api/tasks/99999/discussion").then().statusCode(404);
     }
 
     @Test
     public void unauthenticatedIsRejected() {
-        given().contentType(ContentType.JSON).body("[]").put(path()).then().statusCode(401);
+        given().contentType(ContentType.JSON).body(List.of()).put(path()).then().statusCode(401);
+    }
+
+    private static DiscussionBlockRequest block(String content) {
+        return new DiscussionBlockRequest(null, null, null, null, content);
     }
 
     private String path() {

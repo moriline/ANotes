@@ -1,6 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskSummaryRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -36,14 +41,14 @@ public class TaskSummaryResourceTest {
         memberToken = TestAuthHelper.registerAndLogin("sum-member-" + ts, "sum-member-" + ts + "@test.com", "Pass123!");
         strangerToken = TestAuthHelper.registerAndLogin("sum-stranger-" + ts, "sum-stranger-" + ts + "@test.com", "Pass123!");
 
-        projectId = auth(ownerToken).body("{\"name\": \"summary-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("summary-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        auth(ownerToken).body("{\"userId\": " + meId(memberToken) + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(meId(memberToken), ROLE_DEVELOPER))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
 
-        taskId = auth(ownerToken).body("{\"title\": \"Разобраться с кешем\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("Разобраться с кешем", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -84,7 +89,7 @@ public class TaskSummaryResourceTest {
     public void emptyStringClearsTheConclusion() {
         auth(ownerToken).body(summaryBody("было")).put(summaryPath()).then().statusCode(200);
 
-        auth(ownerToken).body("{\"summary\": \"\"}").put(summaryPath()).then()
+        auth(ownerToken).body(new TaskSummaryRequest("")).put(summaryPath()).then()
             .statusCode(200)
             .body("summary", equalTo(""));
     }
@@ -97,7 +102,7 @@ public class TaskSummaryResourceTest {
             .statusCode(200)
             .body("find { it.id == " + taskId + " }.summary", equalTo("итог виден в задаче"));
 
-        auth(ownerToken).body("{}").post("/api/find").then()
+        auth(ownerToken).body(new FindTasksRequest()).post("/api/find").then()
             .statusCode(200)
             .body("tasks.find { it.id == " + taskId + " }.summary", equalTo("итог виден в задаче"));
     }
@@ -111,7 +116,7 @@ public class TaskSummaryResourceTest {
 
     @Test
     public void requestWithoutSummaryFieldIsRejected() {
-        auth(ownerToken).body("{}").put(summaryPath()).then().statusCode(400);
+        auth(ownerToken).body(new TaskSummaryRequest(null)).put(summaryPath()).then().statusCode(400);
     }
 
     @Test
@@ -135,8 +140,8 @@ public class TaskSummaryResourceTest {
         return "/api/tasks/" + taskId + "/summary";
     }
 
-    private static String summaryBody(String summary) {
-        return "{\"summary\": \"" + summary + "\"}";
+    private static TaskSummaryRequest summaryBody(String summary) {
+        return new TaskSummaryRequest(summary);
     }
 
     private int meId(String token) {

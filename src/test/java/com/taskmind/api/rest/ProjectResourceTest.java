@@ -1,6 +1,7 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
@@ -36,7 +37,7 @@ class ProjectResourceTest {
     @Order(1)
     void shouldCreateProject() {
         Response response = authenticated()
-            .body("{\"name\": \"" + TEST_PROJECT_NAME + "\", \"description\": \"Test Project Description\"}")
+            .body(new ProjectRequest(TEST_PROJECT_NAME, "Test Project Description"))
         .when()
             .post("/api/projects")
         .then()
@@ -67,7 +68,7 @@ class ProjectResourceTest {
     @Order(3)
     void shouldRejectDuplicateName() {
         authenticated()
-            .body("{\"name\": \"" + TEST_PROJECT_NAME + "\"}")
+            .body(new ProjectRequest(TEST_PROJECT_NAME, null))
         .when()
             .post("/api/projects")
         .then()
@@ -94,7 +95,7 @@ class ProjectResourceTest {
     void shouldRejectUnauthenticatedAccess() {
         given()
             .contentType(io.restassured.http.ContentType.JSON)
-            .body("{\"name\": \"unauth-project\"}")
+            .body(new ProjectRequest("unauth-project", null))
         .when()
             .post("/api/projects")
         .then()
@@ -106,16 +107,15 @@ class ProjectResourceTest {
     void testCreateProjectWithColor() {
         // Adding a test case similar to @database\ProjectResourceTest.java
         String projectName = "Color Project";
+        // ProjectRequest не принимает color — новый проект всегда получает цвет по умолчанию.
         authenticated()
-            .body("{\"name\": \"" + projectName + "\", \"description\": \"Colored\", \"color\": \"#FF5733\"}")
+            .body(new ProjectRequest(projectName, "Colored"))
         .when()
             .post("/api/projects")
         .then()
             .statusCode(201)
             .body("name", equalTo(projectName))
-            .body("color", equalTo("#4A90D9")); // Default color in our Project.create() currently
-            // Note: If I want to support color from request, I should update ProjectRequest and Service.
-            // For now, I'm just adding the test case to show how it should be.
+            .body("color", equalTo("#4A90D9"));
     }
 
     private RequestSpecification authenticated() {

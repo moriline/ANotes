@@ -1,6 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskUpdateRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.path.json.JsonPath;
 import io.restassured.specification.RequestSpecification;
@@ -66,7 +71,7 @@ public class FindAssignedToMeTest {
 
     @Test
     public void returnsOnlyTasksAssignedToTheCaller() {
-        List<Integer> mine = idsOf(find(memberToken, "{\"assignedToMe\": true}"));
+        List<Integer> mine = idsOf(find(memberToken, assignedToMe(true)));
 
         assertTrue(mine.containsAll(List.of(mineId, mineInSecondProjectId)),
             "должны быть обе мои задачи из обоих проектов: " + mine);
@@ -76,25 +81,27 @@ public class FindAssignedToMeTest {
 
     @Test
     public void ownerSeesADifferentSetThanTheMember() {
-        assertEquals(List.of(ownersId), idsOf(find(ownerToken, "{\"assignedToMe\": true}")));
+        assertEquals(List.of(ownersId), idsOf(find(ownerToken, assignedToMe(true))));
     }
 
     @Test
     public void combinesWithOtherFilters() {
-        auth(memberToken).body("{\"statusId\": " + inProgressStatusId + "}")
+        auth(memberToken).body(new TaskUpdateRequest(null, null, null, null, inProgressStatusId, null, null, null, null))
             .patch("/api/projects/" + projectId + "/tasks/" + mineId).then().statusCode(200);
 
-        assertEquals(List.of(mineId),
-            idsOf(find(memberToken, "{\"assignedToMe\": true, \"statusId\": " + inProgressStatusId + "}")));
+        FindTasksRequest byStatus = assignedToMe(true);
+        byStatus.statusId = inProgressStatusId;
+        assertEquals(List.of(mineId), idsOf(find(memberToken, byStatus)));
 
-        assertEquals(List.of(mineId),
-            idsOf(find(memberToken, "{\"assignedToMe\": true, \"projectId\": " + projectId + "}")));
+        FindTasksRequest byProject = assignedToMe(true);
+        byProject.projectId = projectId;
+        assertEquals(List.of(mineId), idsOf(find(memberToken, byProject)));
     }
 
     @Test
     public void falseAndAbsentBehaveTheSame() {
-        List<Integer> withFalse = idsOf(find(memberToken, "{\"assignedToMe\": false}"));
-        List<Integer> withoutIt = idsOf(find(memberToken, "{}"));
+        List<Integer> withFalse = idsOf(find(memberToken, assignedToMe(false)));
+        List<Integer> withoutIt = idsOf(find(memberToken, new FindTasksRequest()));
 
         assertEquals(withoutIt, withFalse);
         assertTrue(withFalse.contains(ownersId), "без фильтра видны все доступные задачи");
@@ -102,45 +109,58 @@ public class FindAssignedToMeTest {
 
     @Test
     public void explicitAssignedUserIdWithTheSameUserIsAccepted() {
-        assertEquals(idsOf(find(memberToken, "{\"assignedToMe\": true}")),
-            idsOf(find(memberToken, "{\"assignedToMe\": true, \"assignedUserId\": " + memberId + "}")));
+        FindTasksRequest withExplicitId = assignedToMe(true);
+        withExplicitId.assignedUserId = memberId;
+
+        assertEquals(idsOf(find(memberToken, assignedToMe(true))),
+            idsOf(find(memberToken, withExplicitId)));
     }
 
     @Test
     public void contradictingAssignedUserIdIsRejected() {
-        auth(memberToken).body("{\"assignedToMe\": true, \"assignedUserId\": " + ownerId + "}")
+        FindTasksRequest contradicting = assignedToMe(true);
+        contradicting.assignedUserId = ownerId;
+
+        auth(memberToken).body(contradicting)
             .post("/api/find").then().statusCode(400);
     }
 
     @Test
     public void totalReflectsTheFilter() {
-        JsonPath response = find(memberToken, "{\"assignedToMe\": true}");
+        JsonPath response = find(memberToken, assignedToMe(true));
         assertEquals(2, response.getLong("total"));
     }
 
     private void assign(Integer project, Integer taskId, Integer userId) {
-        auth(ownerToken).body("{\"assignedUserId\": " + userId + "}")
+        auth(ownerToken).body(new TaskUpdateRequest(null, null, null, userId, null, null, null, null, null))
             .patch("/api/projects/" + project + "/tasks/" + taskId).then().statusCode(200);
     }
 
     private void addMember(Integer project, Integer userId) {
-        auth(ownerToken).body("{\"userId\": " + userId + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(userId, ROLE_DEVELOPER))
             .post("/api/projects/" + project + "/members").then().statusCode(201);
     }
 
     private Integer createProject(String name) {
-        return auth(ownerToken).body("{\"name\": \"" + name + "\"}")
+        return auth(ownerToken).body(new ProjectRequest(name, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
 
     private Integer createTask(Integer project, String title) {
-        return auth(ownerToken).body("{\"title\": \"" + title + "\"}")
+        return auth(ownerToken).body(new TaskRequest(title, null, null))
             .post("/api/projects/" + project + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
 
-    private JsonPath find(String token, String body) {
+    /** {@code assignedToMe}-фильтр, к которому тесты дописывают остальные поля. */
+    private static FindTasksRequest assignedToMe(Boolean value) {
+        FindTasksRequest query = new FindTasksRequest();
+        query.assignedToMe = value;
+        return query;
+    }
+
+    private JsonPath find(String token, FindTasksRequest body) {
         return auth(token).body(body).post("/api/find").then().statusCode(200).extract().jsonPath();
     }
 

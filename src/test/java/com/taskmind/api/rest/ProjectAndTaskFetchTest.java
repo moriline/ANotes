@@ -1,8 +1,13 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskSummaryRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import java.util.List;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,10 +46,10 @@ public class ProjectAndTaskFetchTest {
         projectId = createProject(ownerToken, "fetch-project", "проект для карточек");
         otherProjectId = createProject(strangerToken, "fetch-foreign-project", "чужой проект");
 
-        auth(ownerToken).body("{\"userId\": " + meId(memberToken) + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(meId(memberToken), ROLE_DEVELOPER))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
 
-        taskId = auth(ownerToken).body("{\"title\": \"Карточка задачи\", \"description\": \"описание\", \"tags\": [\"ui\"]}")
+        taskId = auth(ownerToken).body(new TaskRequest("Карточка задачи", "описание", List.of("ui")))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -78,7 +83,7 @@ public class ProjectAndTaskFetchTest {
 
     @Test
     public void ownerOpensTaskCardWithAllItsFields() {
-        auth(ownerToken).body("{\"summary\": \"итог задачи\"}")
+        auth(ownerToken).body(new TaskSummaryRequest("итог задачи"))
             .put("/api/tasks/" + taskId + "/summary").then().statusCode(200);
 
         auth(ownerToken).get("/api/projects/" + projectId + "/tasks/" + taskId).then()
@@ -131,7 +136,7 @@ public class ProjectAndTaskFetchTest {
     }
 
     private Integer createProject(String token, String name, String description) {
-        return auth(token).body("{\"name\": \"" + name + "\", \"description\": \"" + description + "\"}")
+        return auth(token).body(new ProjectRequest(name, description))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }

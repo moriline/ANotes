@@ -1,6 +1,10 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.CommentRequest;
+import com.taskmind.api.dto.LoginRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -42,10 +46,10 @@ public class OwnershipStatusCodeTest {
         authorToken = TestAuthHelper.registerAndLogin("own-author-" + ts, "own-author-" + ts + "@test.com", "Pass123!");
         outsiderToken = TestAuthHelper.registerAndLogin("own-other-" + ts, "own-other-" + ts + "@test.com", "Pass123!");
 
-        projectId = auth(authorToken).body("{\"name\": \"ownership-" + ts + "\"}")
+        projectId = auth(authorToken).body(new ProjectRequest("ownership-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
-        taskId = auth(authorToken).body("{\"title\": \"ownership task\"}")
+        taskId = auth(authorToken).body(new TaskRequest("ownership task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -54,7 +58,7 @@ public class OwnershipStatusCodeTest {
     public void editingSomebodyElsesCommentIsForbiddenNotUnauthorized() {
         Integer commentId = createComment();
 
-        auth(outsiderToken).body("{\"content\": \"hijacked\"}")
+        auth(outsiderToken).body(new CommentRequest("hijacked", null))
             .put("/api/comments/" + commentId).then()
             .statusCode(403);
 
@@ -80,7 +84,7 @@ public class OwnershipStatusCodeTest {
     public void authorHimselfIsStillAllowed() {
         Integer commentId = createComment();
 
-        auth(authorToken).body("{\"content\": \"поправил\"}")
+        auth(authorToken).body(new CommentRequest("поправил", null))
             .put("/api/comments/" + commentId).then()
             .statusCode(200)
             .body("content", equalTo("поправил"));
@@ -109,12 +113,12 @@ public class OwnershipStatusCodeTest {
     @Test
     public void badCredentialsStayUnauthorized() {
         given().contentType(ContentType.JSON)
-            .body("{\"username\":\"admin\",\"password\":\"wrong-password\"}")
+            .body(new LoginRequest("admin", "wrong-password"))
             .post("/api/auth/login").then().statusCode(401);
     }
 
     private Integer createComment() {
-        return auth(authorToken).body("{\"content\": \"мой комментарий\"}")
+        return auth(authorToken).body(new CommentRequest("мой комментарий", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }

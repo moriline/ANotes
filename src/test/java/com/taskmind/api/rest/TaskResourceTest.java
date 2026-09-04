@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
@@ -36,7 +38,7 @@ class TaskResourceTest {
     @Order(1)
     void shouldCreateProjectForTasks() {
         Response response = authenticated()
-            .body("{\"name\": \"stage2-test-project\", \"description\": \"Project for task testing\"}")
+            .body(new ProjectRequest("stage2-test-project", "Project for task testing"))
         .when().post("/api/projects")
         .then()
             .statusCode(201)
@@ -49,7 +51,7 @@ class TaskResourceTest {
     @Order(2)
     void shouldCreateTask() {
         Response response = authenticated()
-            .body("{\"title\": \"Implement RAG Search\", \"description\": \"Add semantic search for tasks\", \"tags\": [\"ai\", \"backend\"]}")
+            .body(new TaskRequest("Implement RAG Search", "Add semantic search for tasks", List.of("ai", "backend")))
         .when()
             .post("/api/projects/{id}/tasks", projectId)
         .then()
@@ -95,7 +97,7 @@ class TaskResourceTest {
     void shouldRejectUnauthenticatedAccess() {
         given()
             .contentType(io.restassured.http.ContentType.JSON)
-            .body("{\"title\": \"Unauth Task\"}")
+            .body(new TaskRequest("Unauth Task", null, null))
         .when()
             .post("/api/projects/{id}/tasks", 999)
         .then()
@@ -108,7 +110,7 @@ class TaskResourceTest {
         // Adding a test case for large descriptions, similar to what might be in GlobalTask tests
         String largeDesc = "A".repeat(1000);
         authenticated()
-            .body("{\"title\": \"Large Task\", \"description\": \"" + largeDesc + "\"}")
+            .body(new TaskRequest("Large Task", largeDesc, null))
         .when()
             .post("/api/projects/{id}/tasks", projectId)
         .then()

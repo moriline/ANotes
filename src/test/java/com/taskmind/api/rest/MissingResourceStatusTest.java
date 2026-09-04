@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.CommentRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -35,17 +38,17 @@ public class MissingResourceStatusTest {
         long ts = System.nanoTime();
         token = TestAuthHelper.registerAndLogin("missing-" + ts, "missing-" + ts + "@test.com", "Pass123!");
 
-        Integer projectId = auth().body("{\"name\": \"missing-" + ts + "\"}")
+        Integer projectId = auth().body(new ProjectRequest("missing-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
-        taskId = auth().body("{\"title\": \"task\"}")
+        taskId = auth().body(new TaskRequest("task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
 
     @Test
     public void editingMissingCommentIsNotFoundNotServerError() {
-        auth().body("{\"content\": \"текст\"}")
+        auth().body(new CommentRequest("текст", null))
             .put("/api/comments/" + MISSING_ID).then()
             .statusCode(404);
     }
@@ -63,11 +66,11 @@ public class MissingResourceStatusTest {
     /** Контроль: существующий комментарий по-прежнему правится и удаляется. */
     @Test
     public void existingCommentIsStillEditableAndDeletable() {
-        Integer commentId = auth().body("{\"content\": \"исходный\"}")
+        Integer commentId = auth().body(new CommentRequest("исходный", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        auth().body("{\"content\": \"поправленный\"}")
+        auth().body(new CommentRequest("поправленный", null))
             .put("/api/comments/" + commentId).then()
             .statusCode(200)
             .body("content", equalTo("поправленный"));
