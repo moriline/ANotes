@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -84,8 +85,13 @@ public class ProjectDefaultStatusTest {
     @Test
     public void existingProjectsKeepTheirOwnStatuses() {
         // Проект 1 из сида живёт со своей доской Backlog/In Progress/Review/Done,
-        // дефолты не должны в неё вмешиваться.
-        authenticated()
+        // дефолты не должны в неё вмешиваться. Смотрим из-под admin — владельца
+        // проекта 1: доску проекта видит только тот, у кого есть к нему доступ.
+        String adminToken = given().contentType(io.restassured.http.ContentType.JSON)
+            .body("{\"username\": \"admin\", \"password\": \"admin123\"}")
+            .post("/api/auth/login").then().statusCode(200).extract().jsonPath().getString("token");
+
+        TestAuthHelper.authenticated(adminToken)
         .when().get("/api/project-statuses/project/1")
         .then()
             .statusCode(200)
