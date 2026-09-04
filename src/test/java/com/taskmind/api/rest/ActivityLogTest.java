@@ -136,6 +136,61 @@ public class ActivityLogTest {
     }
 
     @Test
+    public void commentAddEditDeleteAreLogged() {
+        int commentId = auth(ownerToken).body("{\"content\": \"первый вопрос по API\"}")
+            .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
+            .extract().jsonPath().getInt("id");
+
+        Map<String, Object> added = firstOfType(projectFeed(ownerToken), "COMMENT_ADDED");
+        assertEquals(taskId, added.get("taskId"));
+        assertEquals(ownerId, added.get("userId"));
+        assertEquals(ownerUsername, added.get("username"));
+        assertEquals(commentId, details(added).get("commentId"));
+        assertEquals("первый вопрос по API", details(added).get("excerpt"));
+        assertEquals("PUBLIC", added.get("visibility"));
+
+        auth(ownerToken).body("{\"content\": \"первый вопрос по API — уточнён\"}")
+            .put("/api/comments/" + commentId).then().statusCode(200);
+
+        Map<String, Object> edited = firstOfType(projectFeed(ownerToken), "COMMENT_EDITED");
+        assertEquals(commentId, details(edited).get("commentId"));
+        assertEquals("первый вопрос по API — уточнён", details(edited).get("excerpt"));
+
+        auth(ownerToken).delete("/api/comments/" + commentId).then().statusCode(204);
+
+        Map<String, Object> deleted = firstOfType(projectFeed(ownerToken), "COMMENT_DELETED");
+        assertEquals(commentId, details(deleted).get("commentId"));
+        assertFalse(details(deleted).containsKey("excerpt"), "тело удалённого комментария в ленту не переносим");
+        // Событие переживает физическое удаление самого комментария.
+        auth(ownerToken).get("/api/tasks/" + taskId + "/comments").then()
+            .statusCode(200).body("id", not(hasItem(commentId)));
+    }
+
+    @Test
+    public void internalCommentProducesAnInternalEvent() {
+        auth(ownerToken).body("{\"content\": \"это только для команды\", \"visibility\": \"INTERNAL\"}")
+            .post("/api/tasks/" + taskId + "/comments").then().statusCode(201);
+
+        assertEquals("INTERNAL", firstOfType(projectFeed(ownerToken), "COMMENT_ADDED").get("visibility"));
+    }
+
+    @Test
+    public void longCommentIsExcerptedInTheFeed() {
+        auth(ownerToken).body(Map.of("content", "y".repeat(200)))
+            .post("/api/tasks/" + taskId + "/comments").then().statusCode(201);
+
+        String excerpt = (String) details(firstOfType(projectFeed(ownerToken), "COMMENT_ADDED")).get("excerpt");
+        assertEquals(81, excerpt.length(), "80 символов тела плюс многоточие");
+        assertTrue(excerpt.endsWith("…"), excerpt);
+    }
+
+    @Test
+    public void commentingOnAMissingTaskIs404() {
+        auth(ownerToken).body("{\"content\": \"нет такой задачи\"}")
+            .post("/api/tasks/999999/comments").then().statusCode(404);
+    }
+
+    @Test
     public void discussionWritesAreLogged() {
         auth(ownerToken).body("{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"решение\"}")
             .post("/api/tasks/" + taskId + "/discussion").then().statusCode(201);

@@ -5,7 +5,6 @@ package com.taskmind.domain.model;
  *
  * <p>Названия ASSIGNEE_UPDATED, STATUS_CHANGED, TASK_CREATED и COMMENT_ADDED взяты
  * из сида: там уже лежат записи с такими типами, и ломать их вокабуляр незачем.
- * COMMENT_ADDED пока только читается — комментарии в ленту ещё не пишутся.
  */
 public enum ActivityAction {
     PROJECT_CREATED,
@@ -19,5 +18,7 @@ public enum ActivityAction {
     MEMBER_ADDED,
     MEMBER_ROLE_CHANGED,
     MEMBER_REMOVED,
-    COMMENT_ADDED
+    COMMENT_ADDED,
+    COMMENT_EDITED,
+    COMMENT_DELETED
 }
