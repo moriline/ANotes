@@ -26,5 +26,9 @@ public class ActivityLogEntity extends PanacheEntityBase {
     /** JSON-объект с подробностями события; в схеме это VARCHAR(2000). */
     public String actionDetails;
 
+    /** PUBLIC | INTERNAL | SYSTEM. Хранится строкой; см. {@link com.taskmind.domain.model.Visibility}. */
+    @Column(nullable = false)
+    public String visibility = "PUBLIC";
+
     public Long createdAt;
 }

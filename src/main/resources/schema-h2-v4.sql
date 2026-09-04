@@ -153,6 +153,9 @@ CREATE TABLE comments (
     taskId INTEGER NOT NULL,
     userId INTEGER NOT NULL,
     content TEXT NOT NULL,
+    -- PUBLIC | INTERNAL | SYSTEM. Заведено заранее под разделение «команда / заказчик»:
+    -- добавить колонку в непустую таблицу дороже, чем провести её сейчас дефолтом.
+    visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
     createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
     isEdited BOOLEAN DEFAULT FALSE,
     updatedAt BIGINT,
@@ -171,6 +174,8 @@ CREATE TABLE activityLog (
     userId INTEGER,
     actionType VARCHAR(50) NOT NULL,
     actionDetails VARCHAR(2000),
+    -- PUBLIC | INTERNAL | SYSTEM. См. комментарий у comments.visibility.
+    visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
     createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000),
 
     FOREIGN KEY (projectId) REFERENCES projects(projectId) ON DELETE CASCADE,
@@ -275,6 +280,7 @@ SELECT
     u.displayName AS userDisplayName,
     u.avatarUrl AS userAvatar,
     c.content,
+    c.visibility,
     c.createdAt,
     c.isEdited
 FROM comments c

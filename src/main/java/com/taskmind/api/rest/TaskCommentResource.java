@@ -33,7 +33,7 @@ public class TaskCommentResource {
     @POST
     public Response addComment(@PathParam("taskId") Integer taskId, @Valid CommentRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
-        var comment = commentService.addComment(taskId, userId, req.content());
+        var comment = commentService.addComment(taskId, userId, req.content(), req.visibility());
         return Response.status(Response.Status.CREATED).entity(comment).build();
     }
 

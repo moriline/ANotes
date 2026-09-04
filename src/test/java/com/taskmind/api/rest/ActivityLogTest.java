@@ -127,6 +127,15 @@ public class ActivityLogTest {
     }
 
     @Test
+    public void feedEventsCarryVisibility() {
+        List<Map<String, Object>> feed = projectFeed(ownerToken);
+        assertFalse(feed.isEmpty());
+        // Пока всё пишется как PUBLIC; поле присутствует у каждого события.
+        feed.forEach(event -> assertEquals("PUBLIC", event.get("visibility"),
+            "у события " + event.get("actionType") + " должна быть видимость"));
+    }
+
+    @Test
     public void discussionWritesAreLogged() {
         auth(ownerToken).body("{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"решение\"}")
             .post("/api/tasks/" + taskId + "/discussion").then().statusCode(201);

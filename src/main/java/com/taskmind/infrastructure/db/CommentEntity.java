@@ -21,6 +21,10 @@ public class CommentEntity extends PanacheEntityBase {
     @Column(columnDefinition = "TEXT", nullable = false)
     public String content;
 
+    /** PUBLIC | INTERNAL | SYSTEM. Хранится строкой; см. {@link com.taskmind.domain.model.Visibility}. */
+    @Column(nullable = false)
+    public String visibility = "PUBLIC";
+
     public Long createdAt;
     public Boolean isEdited = false;
     public Long updatedAt;

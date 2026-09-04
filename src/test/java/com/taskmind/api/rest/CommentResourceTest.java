@@ -68,4 +68,37 @@ public class CommentResourceTest {
             .body("size()", is(seededComments))
             .body("id", not(hasItem(commentId)));
     }
+
+    @Test
+    public void visibilityDefaultsToPublicAndRoundTrips() {
+        String token = TestAuthHelper.registerAndLogin("vis_user", "vis@test.com", "password");
+
+        // Без поля в запросе — PUBLIC.
+        TestAuthHelper.authenticated(token)
+            .contentType(ContentType.JSON)
+            .body(Map.of("content", "no visibility given"))
+            .post("/api/tasks/1/comments")
+            .then()
+            .statusCode(201)
+            .body("visibility", is("PUBLIC"));
+
+        // Явный INTERNAL сохраняется и виден в списке.
+        Integer internalId = TestAuthHelper.authenticated(token)
+            .contentType(ContentType.JSON)
+            .body(Map.of("content", "budget note", "visibility", "INTERNAL"))
+            .post("/api/tasks/1/comments")
+            .then()
+            .statusCode(201)
+            .body("visibility", is("INTERNAL"))
+            .extract().path("id");
+
+        // Правка текста без visibility в запросе не сбрасывает INTERNAL на PUBLIC.
+        TestAuthHelper.authenticated(token)
+            .contentType(ContentType.JSON)
+            .body(Map.of("content", "budget note (fixed)"))
+            .put("/api/comments/" + internalId)
+            .then()
+            .statusCode(200)
+            .body("visibility", is("INTERNAL"));
+    }
 }

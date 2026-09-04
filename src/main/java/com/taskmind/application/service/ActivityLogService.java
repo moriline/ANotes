@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskmind.api.dto.ActivityResponse;
 import com.taskmind.domain.model.ActivityAction;
+import com.taskmind.domain.model.Visibility;
 import com.taskmind.infrastructure.db.ActivityLogEntity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -35,9 +36,16 @@ public class ActivityLogService {
 
     @Inject UserService userService;
 
+    /** Событие с видимостью по умолчанию — {@link Visibility#PUBLIC}. */
     @Transactional
     public void record(Integer projectId, Integer taskId, Integer userId,
                        ActivityAction action, Map<String, Object> details) {
+        record(projectId, taskId, userId, action, details, Visibility.PUBLIC);
+    }
+
+    @Transactional
+    public void record(Integer projectId, Integer taskId, Integer userId,
+                       ActivityAction action, Map<String, Object> details, Visibility visibility) {
         try {
             var entity = new ActivityLogEntity();
             entity.projectId = projectId;
@@ -45,6 +53,7 @@ public class ActivityLogService {
             entity.userId = userId;
             entity.actionType = action.name();
             entity.actionDetails = serialize(details);
+            entity.visibility = (visibility != null ? visibility : Visibility.PUBLIC).name();
             entity.createdAt = Instant.now().toEpochMilli();
             entity.persist();
         } catch (Exception e) {
@@ -83,6 +92,7 @@ public class ActivityLogService {
             username,
             entity.actionType,
             deserialize(entity.actionDetails),
+            Visibility.fromString(entity.visibility),
             entity.createdAt != null ? Instant.ofEpochMilli(entity.createdAt) : null
         );
     }

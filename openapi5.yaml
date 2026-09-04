@@ -1088,6 +1088,8 @@ components:
         details:
           type: object
           additionalProperties: {}
+        visibility:
+          $ref: "#/components/schemas/Visibility"
         createdAt:
           $ref: "#/components/schemas/Instant"
     AdminUserResponse:
@@ -1140,6 +1142,8 @@ components:
         content:
           pattern: \S
           type: string
+        visibility:
+          $ref: "#/components/schemas/Visibility"
     CommentResponse:
       type: object
       properties:
@@ -1154,6 +1158,8 @@ components:
           type: integer
         content:
           type: string
+        visibility:
+          $ref: "#/components/schemas/Visibility"
         createdAt:
           $ref: "#/components/schemas/Instant"
         isEdited:
@@ -1598,6 +1604,12 @@ components:
           type: string
         avatarUrl:
           type: string
+    Visibility:
+      enum:
+      - PUBLIC
+      - INTERNAL
+      - SYSTEM
+      type: string
   securitySchemes:
     bearerAuth:
       type: http

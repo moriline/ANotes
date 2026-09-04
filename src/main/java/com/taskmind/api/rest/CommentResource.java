@@ -30,7 +30,7 @@ public class CommentResource {
     @Path("/{commentId}")
     public CommentResponse updateComment(@PathParam("commentId") Integer commentId, @Valid CommentRequest req, @Context SecurityContext sec) {
         Integer userId = authService.getUserIdFromToken(sec.getUserPrincipal().getName());
-        return commentService.updateComment(commentId, userId, req.content());
+        return commentService.updateComment(commentId, userId, req.content(), req.visibility());
     }
 
     @DELETE
