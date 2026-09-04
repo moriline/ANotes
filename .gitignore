@@ -22,3 +22,9 @@ local.properties
 
 # Generated HTML from README
 readme.html
+
+# JWT signing keys — generated locally on first run by KeyGenerator
+# (infrastructure.security). Must never be committed: a private key checked
+# into git history lets anyone with repo access mint valid admin JWTs.
+src/main/resources/META-INF/resources/privateKey.pem
+src/main/resources/META-INF/resources/publicKey.pem
