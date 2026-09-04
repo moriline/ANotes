@@ -1,12 +1,12 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.PermissionCheckRequest;
 import com.taskmind.domain.model.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 @QuarkusTest
@@ -53,14 +53,8 @@ public class RoleIntegrationTest {
     }
 
     private void checkPermission(String token, Integer userId, Integer projectId, Action action, boolean expected) {
-        Map<String, Object> body = Map.of(
-            "userId", userId,
-            "projectId", projectId,
-            "action", action.getValue()
-        );
-
         TestAuthHelper.authenticated(token)
-            .body(body)
+            .body(new PermissionCheckRequest(userId, projectId, action.getValue()))
             .post("/api/permissions/check")
             .then()
             .statusCode(200)

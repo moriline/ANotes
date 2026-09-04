@@ -1,7 +1,17 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.CommentRequest;
+import com.taskmind.api.dto.DiscussionBlockRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectMemberRoleRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskSummaryRequest;
+import com.taskmind.api.dto.TaskUpdateRequest;
+import com.taskmind.domain.model.BlockType;
 import com.taskmind.domain.model.ProjectMembership;
+import com.taskmind.domain.model.Visibility;
 import com.taskmind.domain.spi.MembershipRepository;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -54,11 +64,11 @@ public class ActivityLogTest {
         ownerId = meId(ownerToken);
         memberId = meId(memberToken);
 
-        projectId = auth(ownerToken).body("{\"name\": \"activity-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("activity-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        taskId = auth(ownerToken).body("{\"title\": \"Задача для ленты\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("Задача для ленты", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -84,7 +94,7 @@ public class ActivityLogTest {
     public void assigningATaskIsLoggedWithFromAndTo() {
         addMember(memberId, ROLE_DEVELOPER);
 
-        auth(ownerToken).body("{\"assignedUserId\": " + memberId + "}")
+        auth(ownerToken).body(new TaskUpdateRequest(null, null, null, memberId, null, null, null, null, null))
             .patch(taskPath()).then().statusCode(200);
 
         Map<String, Object> event = firstOfType(projectFeed(ownerToken), "ASSIGNEE_UPDATED");
@@ -94,7 +104,7 @@ public class ActivityLogTest {
 
     @Test
     public void movingATaskBetweenStatusesIsLogged() {
-        auth(ownerToken).body("{\"statusId\": " + inProgressStatusId + "}")
+        auth(ownerToken).body(new TaskUpdateRequest(null, null, null, null, inProgressStatusId, null, null, null, null))
             .patch(taskPath()).then().statusCode(200);
 
         Map<String, Object> event = firstOfType(projectFeed(ownerToken), "STATUS_CHANGED");
@@ -104,7 +114,7 @@ public class ActivityLogTest {
 
     @Test
     public void editingPlainFieldsLogsOneUpdateWithTheFieldNames() {
-        auth(ownerToken).body("{\"title\": \"Новый заголовок\", \"estimatedHours\": 3.0}")
+        auth(ownerToken).body(new TaskUpdateRequest("Новый заголовок", null, null, null, null, null, null, 3.0, null))
             .patch(taskPath()).then().statusCode(200);
 
         List<Map<String, Object>> feed = projectFeed(ownerToken);
@@ -118,7 +128,7 @@ public class ActivityLogTest {
 
     @Test
     public void writingASummaryIsLogged() {
-        auth(ownerToken).body("{\"summary\": \"вывод модели\"}")
+        auth(ownerToken).body(new TaskSummaryRequest("вывод модели"))
             .put("/api/tasks/" + taskId + "/summary").then().statusCode(200);
 
         Map<String, Object> event = firstOfType(projectFeed(ownerToken), "SUMMARY_UPDATED");
@@ -137,7 +147,7 @@ public class ActivityLogTest {
 
     @Test
     public void commentAddEditDeleteAreLogged() {
-        int commentId = auth(ownerToken).body("{\"content\": \"первый вопрос по API\"}")
+        int commentId = auth(ownerToken).body(new CommentRequest("первый вопрос по API", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -149,7 +159,7 @@ public class ActivityLogTest {
         assertEquals("первый вопрос по API", details(added).get("excerpt"));
         assertEquals("PUBLIC", added.get("visibility"));
 
-        auth(ownerToken).body("{\"content\": \"первый вопрос по API — уточнён\"}")
+        auth(ownerToken).body(new CommentRequest("первый вопрос по API — уточнён", null))
             .put("/api/comments/" + commentId).then().statusCode(200);
 
         Map<String, Object> edited = firstOfType(projectFeed(ownerToken), "COMMENT_EDITED");
@@ -168,7 +178,7 @@ public class ActivityLogTest {
 
     @Test
     public void internalCommentProducesAnInternalEvent() {
-        auth(ownerToken).body("{\"content\": \"это только для команды\", \"visibility\": \"INTERNAL\"}")
+        auth(ownerToken).body(new CommentRequest("это только для команды", Visibility.INTERNAL))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201);
 
         assertEquals("INTERNAL", firstOfType(projectFeed(ownerToken), "COMMENT_ADDED").get("visibility"));
@@ -176,7 +186,7 @@ public class ActivityLogTest {
 
     @Test
     public void longCommentIsExcerptedInTheFeed() {
-        auth(ownerToken).body(Map.of("content", "y".repeat(200)))
+        auth(ownerToken).body(new CommentRequest("y".repeat(200), null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201);
 
         String excerpt = (String) details(firstOfType(projectFeed(ownerToken), "COMMENT_ADDED")).get("excerpt");
@@ -186,20 +196,20 @@ public class ActivityLogTest {
 
     @Test
     public void commentingOnAMissingTaskIs404() {
-        auth(ownerToken).body("{\"content\": \"нет такой задачи\"}")
+        auth(ownerToken).body(new CommentRequest("нет такой задачи", null))
             .post("/api/tasks/999999/comments").then().statusCode(404);
     }
 
     @Test
     public void discussionWritesAreLogged() {
-        auth(ownerToken).body("{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"решение\"}")
+        auth(ownerToken).body(new DiscussionBlockRequest(null, null, "claude", BlockType.DECISION, "решение"))
             .post("/api/tasks/" + taskId + "/discussion").then().statusCode(201);
 
         Map<String, Object> added = firstOfType(projectFeed(ownerToken), "DISCUSSION_BLOCK_ADDED");
         assertEquals("claude", details(added).get("author"));
         assertEquals("DECISION", details(added).get("type"));
 
-        auth(ownerToken).body("[{\"content\": \"переписали\"}]")
+        auth(ownerToken).body(List.of(new DiscussionBlockRequest(null, null, null, null, "переписали")))
             .put("/api/tasks/" + taskId + "/discussion").then().statusCode(200);
 
         Map<String, Object> replaced = firstOfType(projectFeed(ownerToken), "DISCUSSION_REPLACED");
@@ -210,7 +220,7 @@ public class ActivityLogTest {
     public void membershipChangesAreLogged() {
         addMember(memberId, ROLE_DEVELOPER);
 
-        auth(ownerToken).body("{\"roleId\": " + ROLE_MANAGER + "}")
+        auth(ownerToken).body(new ProjectMemberRoleRequest(ROLE_MANAGER))
             .put("/api/projects/" + projectId + "/members/" + memberId).then().statusCode(200);
 
         auth(ownerToken).delete("/api/projects/" + projectId + "/members/" + memberId).then().statusCode(204);
@@ -227,7 +237,8 @@ public class ActivityLogTest {
 
     @Test
     public void feedIsNewestFirst() {
-        auth(ownerToken).body("{\"title\": \"после всего\"}").patch(taskPath()).then().statusCode(200);
+        auth(ownerToken).body(new TaskUpdateRequest("после всего", null, null, null, null, null, null, null, null))
+            .patch(taskPath()).then().statusCode(200);
 
         List<Map<String, Object>> feed = projectFeed(ownerToken);
         assertEquals("TASK_UPDATED", feed.get(0).get("actionType"));
@@ -256,11 +267,12 @@ public class ActivityLogTest {
 
     @Test
     public void taskFeedShowsOnlyThatTasksEvents() {
-        Integer otherTaskId = auth(ownerToken).body("{\"title\": \"вторая задача\"}")
+        Integer otherTaskId = auth(ownerToken).body(new TaskRequest("вторая задача", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        auth(ownerToken).body("{\"title\": \"переименована\"}").patch(taskPath()).then().statusCode(200);
+        auth(ownerToken).body(new TaskUpdateRequest("переименована", null, null, null, null, null, null, null, null))
+            .patch(taskPath()).then().statusCode(200);
 
         List<Map<String, Object>> taskFeed = feed(ownerToken, "/api/tasks/" + taskId + "/activity");
         assertFalse(taskFeed.isEmpty());
@@ -303,7 +315,7 @@ public class ActivityLogTest {
     }
 
     private void addMember(Integer userId, int roleId) {
-        auth(ownerToken).body("{\"userId\": " + userId + ", \"roleId\": " + roleId + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(userId, roleId))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
     }
 

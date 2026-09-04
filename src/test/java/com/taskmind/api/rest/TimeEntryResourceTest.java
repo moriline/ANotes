@@ -1,6 +1,10 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TimeEntryRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -36,7 +40,7 @@ public class TimeEntryResourceTest {
     @Test
     public void shouldLogTimeAndGetTotalTime() {
         auth(ownerToken)
-            .body("{\"seconds\": 3600, \"description\": \"Test work\"}")
+            .body(new TimeEntryRequest(3600L, "Test work", null))
             .post("/api/tasks/" + ownerTaskId + "/time")
             .then().statusCode(200).body("seconds", is(3600));
 
@@ -49,7 +53,8 @@ public class TimeEntryResourceTest {
     public void shouldAttributeEntryToCallerNotToUserIdFromBody() {
         int callerId = meId(ownerToken);
 
-        // Тело намеренно пытается подставить чужого автора — userId=1 (admin из сида).
+        // Сырой JSON намеренно: TimeEntryRequest поля userId не имеет, а тест как раз
+        // проверяет, что подставленный в тело userId=1 (admin из сида) игнорируется.
         auth(ownerToken)
             .body("{\"userId\": 1, \"seconds\": 1200, \"description\": \"Чужое время\"}")
             .post("/api/tasks/" + ownerTaskId + "/time")
@@ -66,12 +71,12 @@ public class TimeEntryResourceTest {
 
         Integer project = createProject(ownerToken, "time-shared-" + ts);
         int taskId = createTask(ownerToken, project);
-        auth(ownerToken).body("{\"userId\": " + memberId + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(memberId, ROLE_DEVELOPER))
             .post("/api/projects/" + project + "/members").then().statusCode(201);
 
-        auth(ownerToken).body("{\"seconds\": 1800, \"description\": \"A\"}")
+        auth(ownerToken).body(new TimeEntryRequest(1800L, "A", null))
             .post("/api/tasks/" + taskId + "/time").then().statusCode(200).body("userId", equalTo(meId(ownerToken)));
-        auth(memberToken).body("{\"seconds\": 1800, \"description\": \"B\"}")
+        auth(memberToken).body(new TimeEntryRequest(1800L, "B", null))
             .post("/api/tasks/" + taskId + "/time").then().statusCode(200).body("userId", equalTo(memberId));
 
         auth(ownerToken).get("/api/tasks/" + taskId + "/time").then().statusCode(200).body(is("3600"));
@@ -80,7 +85,7 @@ public class TimeEntryResourceTest {
     @Test
     public void shouldRejectRequestWithoutSeconds() {
         auth(ownerToken)
-            .body("{\"description\": \"без часов\"}")
+            .body(new TimeEntryRequest(null, "без часов", null))
             .post("/api/tasks/" + ownerTaskId + "/time")
             .then().statusCode(400);
     }
@@ -88,7 +93,7 @@ public class TimeEntryResourceTest {
     @Test
     public void shouldRejectUnauthenticated() {
         given().contentType(ContentType.JSON)
-            .body("{\"seconds\": 600}")
+            .body(new TimeEntryRequest(600L, null, null))
             .post("/api/tasks/" + ownerTaskId + "/time")
             .then().statusCode(401);
     }
@@ -99,7 +104,7 @@ public class TimeEntryResourceTest {
         String strangerToken = TestAuthHelper.registerAndLogin("time-stranger-" + ts, "time-stranger-" + ts + "@test.com", "Pass123!");
 
         auth(strangerToken)
-            .body("{\"seconds\": 600}")
+            .body(new TimeEntryRequest(600L, null, null))
             .post("/api/tasks/" + ownerTaskId + "/time")
             .then().statusCode(403);
 
@@ -111,7 +116,7 @@ public class TimeEntryResourceTest {
     @Test
     public void loggingTimeOnAMissingTaskIs404() {
         auth(ownerToken)
-            .body("{\"seconds\": 600}")
+            .body(new TimeEntryRequest(600L, null, null))
             .post("/api/tasks/999999/time")
             .then().statusCode(404);
     }
@@ -119,12 +124,12 @@ public class TimeEntryResourceTest {
     // --- helpers ---------------------------------------------------------
 
     private Integer createProject(String token, String name) {
-        return auth(token).body("{\"name\": \"" + name + "\"}")
+        return auth(token).body(new ProjectRequest(name, null))
             .post("/api/projects").then().statusCode(201).extract().jsonPath().getInt("id");
     }
 
     private int createTask(String token, Integer projectId) {
-        return auth(token).body("{\"title\": \"task\"}")
+        return auth(token).body(new TaskRequest("task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }

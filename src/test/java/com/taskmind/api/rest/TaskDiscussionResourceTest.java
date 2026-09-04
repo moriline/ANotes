@@ -1,6 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.DiscussionBlockRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.domain.model.BlockType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -41,14 +46,14 @@ public class TaskDiscussionResourceTest {
         memberToken = TestAuthHelper.registerAndLogin("dis-member-" + ts, "dis-member-" + ts + "@test.com", "Pass123!");
         strangerToken = TestAuthHelper.registerAndLogin("dis-stranger-" + ts, "dis-stranger-" + ts + "@test.com", "Pass123!");
 
-        projectId = auth(ownerToken).body("{\"name\": \"discussion-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("discussion-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        auth(ownerToken).body("{\"userId\": " + meId(memberToken) + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(meId(memberToken), ROLE_DEVELOPER))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
 
-        taskId = auth(ownerToken).body("{\"title\": \"Задача с обсуждением\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("Задача с обсуждением", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -62,7 +67,7 @@ public class TaskDiscussionResourceTest {
 
     @Test
     public void blockGetsServerIdCallerAsAuthorAndMessageTypeByDefault() {
-        auth(ownerToken).body("{\"content\": \"С чего начать?\"}")
+        auth(ownerToken).body(block("С чего начать?"))
             .post(path()).then()
             .statusCode(201)
             .body("id", notNullValue())
@@ -77,7 +82,7 @@ public class TaskDiscussionResourceTest {
     @Test
     public void agentCanSignItsOwnConclusionAsDecision() {
         auth(ownerToken)
-            .body("{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"Кеш инвалидируется по версии сборки\"}")
+            .body(new DiscussionBlockRequest(null, null, "claude", BlockType.DECISION, "Кеш инвалидируется по версии сборки"))
             .post(path()).then()
             .statusCode(201)
             .body("author", equalTo("claude"))
@@ -106,7 +111,7 @@ public class TaskDiscussionResourceTest {
         String rootId = addBlock("вопрос");
 
         String childId = auth(ownerToken)
-            .body("{\"parentId\": \"" + rootId + "\", \"content\": \"ответ\"}")
+            .body(new DiscussionBlockRequest(null, UUID.fromString(rootId), null, null, "ответ"))
             .post(path()).then()
             .statusCode(201)
             .body("level", equalTo(1))
@@ -114,7 +119,7 @@ public class TaskDiscussionResourceTest {
             .extract().jsonPath().getString("id");
 
         auth(ownerToken)
-            .body("{\"parentId\": \"" + childId + "\", \"content\": \"уточнение\"}")
+            .body(new DiscussionBlockRequest(null, UUID.fromString(childId), null, null, "уточнение"))
             .post(path()).then()
             .statusCode(201)
             .body("level", equalTo(2));
@@ -123,7 +128,7 @@ public class TaskDiscussionResourceTest {
     @Test
     public void replyToUnknownParentIsRejected() {
         auth(ownerToken)
-            .body("{\"parentId\": \"" + UUID.randomUUID() + "\", \"content\": \"в никуда\"}")
+            .body(new DiscussionBlockRequest(null, UUID.randomUUID(), null, null, "в никуда"))
             .post(path()).then()
             .statusCode(400);
     }
@@ -133,13 +138,13 @@ public class TaskDiscussionResourceTest {
         UUID clientId = UUID.randomUUID();
 
         auth(ownerToken)
-            .body("{\"id\": \"" + clientId + "\", \"content\": \"со своим идентификатором\"}")
+            .body(new DiscussionBlockRequest(clientId, null, null, null, "со своим идентификатором"))
             .post(path()).then()
             .statusCode(201)
             .body("id", equalTo(clientId.toString()));
 
         auth(ownerToken)
-            .body("{\"id\": \"" + clientId + "\", \"content\": \"повтор\"}")
+            .body(new DiscussionBlockRequest(clientId, null, null, null, "повтор"))
             .post(path()).then()
             .statusCode(409);
 
@@ -148,26 +153,26 @@ public class TaskDiscussionResourceTest {
 
     @Test
     public void blankContentIsRejected() {
-        auth(ownerToken).body("{\"content\": \"   \"}").post(path()).then().statusCode(400);
-        auth(ownerToken).body("{}").post(path()).then().statusCode(400);
+        auth(ownerToken).body(block("   ")).post(path()).then().statusCode(400);
+        auth(ownerToken).body(block(null)).post(path()).then().statusCode(400);
     }
 
     @Test
     public void memberOfTheProjectCanReadAndWrite() {
-        auth(memberToken).body("{\"content\": \"от участника\"}").post(path()).then().statusCode(201);
+        auth(memberToken).body(block("от участника")).post(path()).then().statusCode(201);
         auth(memberToken).get(path()).then().statusCode(200).body("$", hasSize(1));
     }
 
     @Test
     public void strangerCanNeitherReadNorWrite() {
         auth(strangerToken).get(path()).then().statusCode(403);
-        auth(strangerToken).body("{\"content\": \"чужое\"}").post(path()).then().statusCode(403);
+        auth(strangerToken).body(block("чужое")).post(path()).then().statusCode(403);
     }
 
     @Test
     public void unknownTaskGives404() {
         auth(ownerToken).get("/api/tasks/99999/discussion").then().statusCode(404);
-        auth(ownerToken).body("{\"content\": \"x\"}").post("/api/tasks/99999/discussion").then().statusCode(404);
+        auth(ownerToken).body(block("x")).post("/api/tasks/99999/discussion").then().statusCode(404);
     }
 
     @Test
@@ -176,9 +181,13 @@ public class TaskDiscussionResourceTest {
     }
 
     private String addBlock(String content) {
-        return auth(ownerToken).body("{\"content\": \"" + content + "\"}")
+        return auth(ownerToken).body(block(content))
             .post(path()).then().statusCode(201)
             .extract().jsonPath().getString("id");
+    }
+
+    private static DiscussionBlockRequest block(String content) {
+        return new DiscussionBlockRequest(null, null, null, null, content);
     }
 
     private String path() {

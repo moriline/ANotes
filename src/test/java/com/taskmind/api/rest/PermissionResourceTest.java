@@ -1,11 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.PermissionCheckRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 @QuarkusTest
@@ -28,14 +28,8 @@ public class PermissionResourceTest {
         String token = TestAuthHelper.registerAndLogin(
             "permission_tester", "permission_tester@test.com", "password");
 
-        Map<String, Object> checkBody = Map.of(
-            "userId", 1,
-            "projectId", 1,
-            "action", "task:create"
-        );
-
         TestAuthHelper.authenticated(token)
-            .body(checkBody)
+            .body(new PermissionCheckRequest(1, 1, "task:create"))
             .post("/api/permissions/check")
             .then()
             .statusCode(200)

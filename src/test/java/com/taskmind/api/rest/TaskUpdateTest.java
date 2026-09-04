@@ -1,6 +1,10 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskUpdateRequest;
 import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.spi.MembershipRepository;
 import io.quarkus.test.junit.QuarkusTest;
@@ -10,6 +14,8 @@ import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -51,13 +57,13 @@ public class TaskUpdateTest {
         memberId = meId(memberToken);
         strangerId = meId(strangerToken);
 
-        projectId = auth(ownerToken).body("{\"name\": \"update-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("update-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
         membershipRepository.save(ProjectMembership.create(projectId, memberId, ROLE_DEVELOPER));
 
-        taskId = auth(ownerToken).body("{\"title\": \"Исходная задача\", \"description\": \"описание\", \"tags\": [\"ai\"]}")
+        taskId = auth(ownerToken).body(new TaskRequest("Исходная задача", "описание", List.of("ai")))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -69,7 +75,7 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldAssignTaskToProjectMember() {
-        patch("{\"assignedUserId\": " + memberId + "}")
+        patch(update().assignedUserId(memberId).build())
             .statusCode(200)
             .body("assignedUserId", equalTo(memberId))
             .body("title", equalTo("Исходная задача"));
@@ -77,20 +83,19 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldMoveTaskThroughStatuses() {
-        patch("{\"statusId\": " + inProgressStatusId + "}")
+        patch(update().statusId(inProgressStatusId).build())
             .statusCode(200)
             .body("statusId", equalTo(inProgressStatusId));
 
-        patch("{\"statusId\": " + doneStatusId + "}")
+        patch(update().statusId(doneStatusId).build())
             .statusCode(200)
             .body("statusId", equalTo(doneStatusId));
     }
 
     @Test
     public void shouldUpdateTextDatesAndEstimate() {
-        patch("{\"title\": \"Новый заголовок\", \"description\": \"новое описание\","
-            + " \"tags\": [\"backend\", \"urgent\"], \"dueDate\": 1767225600000,"
-            + " \"startDate\": 1764547200000, \"estimatedHours\": 7.5}")
+        patch(new TaskUpdateRequest("Новый заголовок", "новое описание", List.of("backend", "urgent"),
+                null, null, 1767225600000L, 1764547200000L, 7.5, null))
             .statusCode(200)
             .body("title", equalTo("Новый заголовок"))
             .body("description", equalTo("новое описание"))
@@ -102,11 +107,11 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldLeaveOmittedFieldsUntouched() {
-        patch("{\"assignedUserId\": " + memberId + ", \"statusId\": " + doneStatusId + "}")
+        patch(update().assignedUserId(memberId).statusId(doneStatusId).build())
             .statusCode(200);
 
         // Второй PATCH меняет только заголовок — остальное обязано уцелеть.
-        patch("{\"title\": \"Только заголовок\"}")
+        patch(update().title("Только заголовок").build())
             .statusCode(200)
             .body("title", equalTo("Только заголовок"))
             .body("description", equalTo("описание"))
@@ -117,16 +122,16 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldArchiveTaskAndExposeItToTheArchivedFilter() {
-        patch("{\"isArchived\": true}")
+        patch(update().isArchived(true).build())
             .statusCode(200)
             .body("isArchived", equalTo(true));
 
-        auth(ownerToken).body("{\"isArchived\": true}")
+        auth(ownerToken).body(findArchived(true))
             .post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", hasItem(taskId));
 
-        auth(ownerToken).body("{\"isArchived\": false}")
+        auth(ownerToken).body(findArchived(false))
             .post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", not(hasItem(taskId)));
@@ -134,20 +139,22 @@ public class TaskUpdateTest {
 
     @Test
     public void assignedAndStatusFiltersOfFindNowReturnTheTask() {
-        patch("{\"assignedUserId\": " + memberId + ", \"statusId\": " + inProgressStatusId + "}")
+        patch(update().assignedUserId(memberId).statusId(inProgressStatusId).build())
             .statusCode(200);
 
-        auth(memberToken).body("{\"assignedUserId\": " + memberId + "}")
+        auth(memberToken).body(findAssignedTo(memberId))
             .post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", hasItem(taskId));
 
-        auth(memberToken).body("{\"statusId\": " + inProgressStatusId + "}")
+        FindTasksRequest byStatus = new FindTasksRequest();
+        byStatus.statusId = inProgressStatusId;
+        auth(memberToken).body(byStatus)
             .post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", hasItem(taskId));
 
-        auth(memberToken).body("{\"assignedUserId\": " + ownerId + "}")
+        auth(memberToken).body(findAssignedTo(ownerId))
             .post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", not(hasItem(taskId)));
@@ -155,19 +162,19 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldRejectAssigneeWhoIsNotInTheProject() {
-        patch("{\"assignedUserId\": " + strangerId + "}")
+        patch(update().assignedUserId(strangerId).build())
             .statusCode(400);
     }
 
     @Test
     public void shouldRejectAssigneeWhoDoesNotExist() {
-        patch("{\"assignedUserId\": 99999}")
+        patch(update().assignedUserId(99999).build())
             .statusCode(400);
     }
 
     @Test
     public void shouldRejectStatusFromAnotherProject() {
-        Integer otherProjectId = auth(strangerToken).body("{\"name\": \"foreign-project\"}")
+        Integer otherProjectId = auth(strangerToken).body(new ProjectRequest("foreign-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -175,31 +182,31 @@ public class TaskUpdateTest {
             .get("/api/project-statuses/project/" + otherProjectId)
             .then().statusCode(200).extract().jsonPath().getInt("[0].id");
 
-        patch("{\"statusId\": " + foreignStatusId + "}")
+        patch(update().statusId(foreignStatusId).build())
             .statusCode(400);
     }
 
     @Test
     public void shouldReturn404WhenTaskDoesNotBelongToProjectInPath() {
-        Integer otherProjectId = auth(ownerToken).body("{\"name\": \"another-own-project\"}")
+        Integer otherProjectId = auth(ownerToken).body(new ProjectRequest("another-own-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
-        auth(ownerToken).body("{\"title\": \"нельзя\"}")
+        auth(ownerToken).body(update().title("нельзя").build())
             .patch("/api/projects/" + otherProjectId + "/tasks/" + taskId)
             .then().statusCode(404);
     }
 
     @Test
     public void shouldRejectCallerWithoutAccessToProject() {
-        auth(strangerToken).body("{\"title\": \"чужое\"}")
+        auth(strangerToken).body(update().title("чужое").build())
             .patch("/api/projects/" + projectId + "/tasks/" + taskId)
             .then().statusCode(403);
     }
 
     @Test
     public void memberCanUpdateTaskOfTheProject() {
-        auth(memberToken).body("{\"statusId\": " + doneStatusId + "}")
+        auth(memberToken).body(update().statusId(doneStatusId).build())
             .patch("/api/projects/" + projectId + "/tasks/" + taskId)
             .then().statusCode(200)
             .body("statusId", equalTo(doneStatusId));
@@ -207,15 +214,48 @@ public class TaskUpdateTest {
 
     @Test
     public void shouldRejectUnauthenticated() {
-        given().contentType(ContentType.JSON).body("{\"title\": \"x\"}")
+        given().contentType(ContentType.JSON).body(update().title("x").build())
             .patch("/api/projects/" + projectId + "/tasks/" + taskId)
             .then().statusCode(401);
     }
 
-    private io.restassured.response.ValidatableResponse patch(String body) {
+    private io.restassured.response.ValidatableResponse patch(TaskUpdateRequest body) {
         return auth(ownerToken).body(body)
             .patch("/api/projects/" + projectId + "/tasks/" + taskId)
             .then();
+    }
+
+    private static FindTasksRequest findArchived(boolean archived) {
+        FindTasksRequest query = new FindTasksRequest();
+        query.isArchived = archived;
+        return query;
+    }
+
+    private static FindTasksRequest findAssignedTo(Integer userId) {
+        FindTasksRequest query = new FindTasksRequest();
+        query.assignedUserId = userId;
+        return query;
+    }
+
+    /** Собирает частичный {@link TaskUpdateRequest} — 9 позиционных null читаются плохо. */
+    private static Update update() {
+        return new Update();
+    }
+
+    private static final class Update {
+        private String title;
+        private Integer assignedUserId;
+        private Integer statusId;
+        private Boolean isArchived;
+
+        Update title(String value) { this.title = value; return this; }
+        Update assignedUserId(Integer value) { this.assignedUserId = value; return this; }
+        Update statusId(Integer value) { this.statusId = value; return this; }
+        Update isArchived(Boolean value) { this.isArchived = value; return this; }
+
+        TaskUpdateRequest build() {
+            return new TaskUpdateRequest(title, null, null, assignedUserId, statusId, null, null, null, isArchived);
+        }
     }
 
     private int meId(String token) {

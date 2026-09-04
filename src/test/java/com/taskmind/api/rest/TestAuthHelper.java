@@ -1,5 +1,6 @@
 package com.taskmind.api.rest;
 
+import com.taskmind.api.dto.RegisterRequest;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
@@ -16,8 +17,9 @@ public final class TestAuthHelper {
      * валился ниже по стеку на непонятном 401 вместо «такой username уже занят».
      */
     public static String registerAndLogin(String username, String email, String password) {
-        String regBody = "{\"username\":\"" + username + "\",\"email\":\"" + email + "\",\"password\":\"" + password + "\"}";
-        Response response = given().contentType(ContentType.JSON).body(regBody).post("/api/auth/register");
+        Response response = given().contentType(ContentType.JSON)
+            .body(new RegisterRequest(username, email, password))
+            .post("/api/auth/register");
 
         if (response.statusCode() != 200) {
             throw new AssertionError("Не удалось зарегистрировать '" + username + "' (HTTP "

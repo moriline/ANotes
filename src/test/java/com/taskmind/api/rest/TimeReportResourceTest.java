@@ -1,6 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.LoginRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TimeEntryRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -49,7 +54,7 @@ public class TimeReportResourceTest {
         sharedTaskId = createTask(sharedProject);
         privateTaskId = createTask(privateProject);
 
-        auth(ownerToken).body("{\"userId\": " + memberId + ", \"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(memberId, ROLE_DEVELOPER))
             .post("/api/projects/" + sharedProject + "/members").then().statusCode(201);
 
         // owner: 2000с на общем проекте и 5000с на своём закрытом — обе записи в июне 2025.
@@ -137,18 +142,18 @@ public class TimeReportResourceTest {
     // --- helpers ---------------------------------------------------------
 
     private Integer createProject(String name) {
-        return auth(ownerToken).body("{\"name\": \"" + name + "\"}")
+        return auth(ownerToken).body(new ProjectRequest(name, null))
             .post("/api/projects").then().statusCode(201).extract().jsonPath().getInt("id");
     }
 
     private Integer createTask(Integer projectId) {
-        return auth(ownerToken).body("{\"title\": \"task\"}")
+        return auth(ownerToken).body(new TaskRequest("task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
 
     private void logTime(String token, Integer taskId, long seconds, long startTime) {
-        auth(token).body("{\"seconds\": " + seconds + ", \"startTime\": " + startTime + "}")
+        auth(token).body(new TimeEntryRequest(seconds, null, startTime))
             .post("/api/tasks/" + taskId + "/time").then().statusCode(200);
     }
 
@@ -162,7 +167,7 @@ public class TimeReportResourceTest {
 
     private static String login(String username, String password) {
         return given().contentType(ContentType.JSON)
-            .body("{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}")
+            .body(new LoginRequest(username, password))
             .post("/api/auth/login").then().statusCode(200).extract().jsonPath().getString("token");
     }
 
