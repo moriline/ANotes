@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -41,7 +44,7 @@ public class EndpointPermissionTest {
         ts = System.nanoTime();
         ownerToken = register("rbac-owner");
         strangerToken = register("rbac-stranger");
-        projectId = auth(ownerToken).body("{\"name\": \"rbac-project-" + ts + "\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("rbac-project-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -104,7 +107,7 @@ public class EndpointPermissionTest {
     public void taskOfAnotherProjectIsNotFound() {
         Integer taskId = createdTaskId();
 
-        Integer otherProjectId = auth(ownerToken).body("{\"name\": \"rbac-other-" + ts + "\"}")
+        Integer otherProjectId = auth(ownerToken).body(new ProjectRequest("rbac-other-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -162,7 +165,7 @@ public class EndpointPermissionTest {
         Integer id = auth(token).get("/api/users/me").then().statusCode(200)
             .extract().jsonPath().getInt("id");
 
-        auth(ownerToken).body("{\"userId\": " + id + ", \"roleId\": " + roleId + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(id, roleId))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
         return token;
     }
@@ -175,8 +178,8 @@ public class EndpointPermissionTest {
         return createTask(ownerToken).statusCode(201).extract().jsonPath().getInt("id");
     }
 
-    private String taskBody() {
-        return "{\"title\": \"rbac task\", \"description\": \"d\"}";
+    private TaskRequest taskBody() {
+        return new TaskRequest("rbac task", "d", null);
     }
 
     private String taskPath(Integer taskId) {

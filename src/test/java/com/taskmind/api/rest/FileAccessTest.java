@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -45,10 +48,10 @@ public class FileAccessTest {
         strangerToken = TestAuthHelper.registerAndLogin("fa-stranger-" + ts, "fa-stranger-" + ts + "@test.com", "Pass123!");
         memberId = meId(memberToken);
 
-        projectId = auth(ownerToken).body("{\"name\": \"file-access-" + ts + "\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("file-access-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
-        taskId = auth(ownerToken).body("{\"title\": \"task\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -91,7 +94,7 @@ public class FileAccessTest {
 
     @Test
     public void uploadingUnderTheWrongProjectIs404() throws IOException {
-        Integer otherProject = auth(ownerToken).body("{\"name\": \"fa-other-" + System.nanoTime() + "\"}")
+        Integer otherProject = auth(ownerToken).body(new ProjectRequest("fa-other-" + System.nanoTime(), null))
             .post("/api/projects").then().statusCode(201).extract().jsonPath().getInt("id");
 
         uploadRequest(ownerToken).post("/api/files/projects/" + otherProject + "/tasks/" + taskId)
@@ -112,7 +115,7 @@ public class FileAccessTest {
     }
 
     private void addMember(Integer userId, int roleId) {
-        auth(ownerToken).body("{\"userId\": " + userId + ", \"roleId\": " + roleId + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(userId, roleId))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
     }
 

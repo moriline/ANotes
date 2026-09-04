@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.LoginRequest;
+import com.taskmind.api.dto.RegisterRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
@@ -32,9 +34,8 @@ class AuthResourceTest {
 
     @Test @Order(1)
     void shouldRegisterAndGetToken() {
-        String body = "{\"username\":\"" + TEST_USER + "\",\"email\":\"" + TEST_EMAIL + "\",\"password\":\"" + TEST_PASS + "\"}";
         Response response = given().contentType(ContentType.JSON)
-            .body(body)
+            .body(new RegisterRequest(TEST_USER, TEST_EMAIL, TEST_PASS))
         .when().post("/api/auth/register");
 
         token = response.jsonPath().getString("token");
@@ -44,7 +45,7 @@ class AuthResourceTest {
     @Test @Order(2)
     void shouldLoginAndGetToken() {
         given().contentType(ContentType.JSON)
-            .body("{\"username\":\"" + TEST_USER + "\",\"password\":\"" + TEST_PASS + "\"}")
+            .body(new LoginRequest(TEST_USER, TEST_PASS))
         .when().post("/api/auth/login")
         .then().statusCode(200)
             .body("token", notNullValue())
@@ -65,7 +66,7 @@ class AuthResourceTest {
     @Test @Order(4)
     void shouldRejectInvalidCredentials() {
         given().contentType(ContentType.JSON)
-            .body("{\"username\":\"" + TEST_USER + "\",\"password\":\"WrongPass\"}")
+            .body(new LoginRequest(TEST_USER, "WrongPass"))
         .when().post("/api/auth/login")
         .then().statusCode(401);
     }
@@ -75,7 +76,7 @@ class AuthResourceTest {
     @Test @Order(5)
     void shouldRejectDuplicateUsername() {
         given().contentType(ContentType.JSON)
-            .body("{\"username\":\"" + TEST_USER + "\",\"email\":\"other@example.com\",\"password\":\"" + TEST_PASS + "\"}")
+            .body(new RegisterRequest(TEST_USER, "other@example.com", TEST_PASS))
         .when().post("/api/auth/register")
         .then().statusCode(409);
     }
@@ -84,7 +85,7 @@ class AuthResourceTest {
     @Test @Order(6)
     void shouldRejectDuplicateEmail() {
         given().contentType(ContentType.JSON)
-            .body("{\"username\":\"other-" + TEST_USER + "\",\"email\":\"" + TEST_EMAIL + "\",\"password\":\"" + TEST_PASS + "\"}")
+            .body(new RegisterRequest("other-" + TEST_USER, TEST_EMAIL, TEST_PASS))
         .when().post("/api/auth/register")
         .then().statusCode(409);
     }

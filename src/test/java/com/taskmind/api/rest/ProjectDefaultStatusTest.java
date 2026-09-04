@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.LoginRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.path.json.JsonPath;
 import io.restassured.specification.RequestSpecification;
@@ -60,7 +63,7 @@ public class ProjectDefaultStatusTest {
         Integer toDoStatusId = statusesOf(projectId).getInt("[0].id");
 
         authenticated()
-            .body("{\"title\": \"Задача на доске\"}")
+            .body(new TaskRequest("Задача на доске", null, null))
         .when().post("/api/projects/" + projectId + "/tasks")
         .then()
             .statusCode(201)
@@ -88,7 +91,7 @@ public class ProjectDefaultStatusTest {
         // дефолты не должны в неё вмешиваться. Смотрим из-под admin — владельца
         // проекта 1: доску проекта видит только тот, у кого есть к нему доступ.
         String adminToken = given().contentType(io.restassured.http.ContentType.JSON)
-            .body("{\"username\": \"admin\", \"password\": \"admin123\"}")
+            .body(new LoginRequest("admin", "admin123"))
             .post("/api/auth/login").then().statusCode(200).extract().jsonPath().getString("token");
 
         TestAuthHelper.authenticated(adminToken)
@@ -100,7 +103,7 @@ public class ProjectDefaultStatusTest {
 
     private Integer createProject(String name) {
         return authenticated()
-            .body("{\"name\": \"" + name + "\"}")
+            .body(new ProjectRequest(name, null))
         .when().post("/api/projects")
         .then().statusCode(201)
             .extract().jsonPath().getInt("id");

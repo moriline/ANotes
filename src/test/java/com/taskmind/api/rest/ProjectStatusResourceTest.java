@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.ProjectStatusRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -28,7 +30,7 @@ public class ProjectStatusResourceTest {
         cleanup.clearAll();
         long ts = System.nanoTime();
         ownerToken = TestAuthHelper.registerAndLogin("status-owner-" + ts, "status-owner-" + ts + "@test.com", "Pass123!");
-        projectId = auth(ownerToken).body("{\"name\": \"status-proj-" + ts + "\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("status-proj-" + ts, null))
             .post("/api/projects").then().statusCode(201).extract().jsonPath().getInt("id");
     }
 
@@ -39,9 +41,7 @@ public class ProjectStatusResourceTest {
             .get("/api/project-statuses/project/" + projectId)
             .then().statusCode(200).body("$", hasSize(3));
 
-        String body = "{\"projectId\":" + projectId + ", \"statusName\":\"DONE\", \"statusColor\":\"#00FF00\","
-            + " \"statusOrder\":9, \"isDefault\":false, \"isClosed\":true}";
-        auth(ownerToken).body(body)
+        auth(ownerToken).body(new ProjectStatusRequest(projectId, "DONE", "#00FF00", 9, false, true))
             .post("/api/project-statuses")
             .then().statusCode(201);
 
@@ -59,9 +59,7 @@ public class ProjectStatusResourceTest {
             .get("/api/project-statuses/project/" + projectId)
             .then().statusCode(403);
 
-        String body = "{\"projectId\":" + projectId + ", \"statusName\":\"X\", \"statusColor\":\"#000000\","
-            + " \"statusOrder\":1, \"isDefault\":false, \"isClosed\":false}";
-        auth(strangerToken).body(body)
+        auth(strangerToken).body(new ProjectStatusRequest(projectId, "X", "#000000", 1, false, false))
             .post("/api/project-statuses")
             .then().statusCode(403);
     }

@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
@@ -42,14 +44,14 @@ class FileResourceTest {
     void prepareData() {
         // Create Project
         Response projResp = authenticated()
-            .body("{\"name\": \"file-project\"}")
+            .body(new ProjectRequest("file-project", null))
         .when().post("/api/projects")
         .then().statusCode(201).extract().response();
         projectId = projResp.jsonPath().getInt("id");
 
         // Create Task
         Response taskResp = authenticated()
-            .body("{\"title\": \"Task for files\"}")
+            .body(new TaskRequest("Task for files", null, null))
         .when().post("/api/projects/" + projectId + "/tasks")
         .then().statusCode(201).extract().response();
         taskId = taskResp.jsonPath().getInt("id");

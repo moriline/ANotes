@@ -1,14 +1,16 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.CommentRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -43,10 +45,10 @@ public class TaskCommentAccessTest {
         strangerToken = TestAuthHelper.registerAndLogin("ca-stranger-" + ts, "ca-stranger-" + ts + "@test.com", "Pass123!");
         memberId = meId(memberToken);
 
-        projectId = auth(ownerToken).body("{\"name\": \"comment-access-" + ts + "\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("comment-access-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
-        taskId = auth(ownerToken).body("{\"title\": \"task\"}")
+        taskId = auth(ownerToken).body(new TaskRequest("task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -55,7 +57,7 @@ public class TaskCommentAccessTest {
     public void projectCreatorCanReadAndWriteComments() {
         // Создатель нигде не добавлялся руками — доступ есть только потому, что
         // createProject кладёт его в участники с ролью Admin.
-        Integer commentId = auth(ownerToken).body(Map.of("content", "первый"))
+        Integer commentId = auth(ownerToken).body(new CommentRequest("первый", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
             .extract().path("id");
 
@@ -67,7 +69,7 @@ public class TaskCommentAccessTest {
     public void strangerCannotReadOrWriteComments() {
         auth(strangerToken).get("/api/tasks/" + taskId + "/comments").then().statusCode(403);
 
-        auth(strangerToken).body(Map.of("content", "чужой проект"))
+        auth(strangerToken).body(new CommentRequest("чужой проект", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(403);
     }
 
@@ -75,7 +77,7 @@ public class TaskCommentAccessTest {
     public void addedMemberCanComment() {
         addMember(memberId, ROLE_DEVELOPER);
 
-        auth(memberToken).body(Map.of("content", "я в проекте"))
+        auth(memberToken).body(new CommentRequest("я в проекте", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201);
         auth(memberToken).get("/api/tasks/" + taskId + "/comments").then().statusCode(200);
     }
@@ -84,7 +86,7 @@ public class TaskCommentAccessTest {
     public void removedMemberCannotTouchOwnComment() {
         addMember(memberId, ROLE_DEVELOPER);
 
-        Integer commentId = auth(memberToken).body(Map.of("content", "пока я здесь"))
+        Integer commentId = auth(memberToken).body(new CommentRequest("пока я здесь", null))
             .post("/api/tasks/" + taskId + "/comments").then().statusCode(201)
             .extract().path("id");
 
@@ -92,7 +94,7 @@ public class TaskCommentAccessTest {
             .then().statusCode(204);
 
         // Свой комментарий, но проект уже недоступен -> 403, а не 200.
-        auth(memberToken).body(Map.of("content", "правка после выхода"))
+        auth(memberToken).body(new CommentRequest("правка после выхода", null))
             .put("/api/comments/" + commentId).then().statusCode(403);
         auth(memberToken).delete("/api/comments/" + commentId).then().statusCode(403);
 
@@ -103,12 +105,12 @@ public class TaskCommentAccessTest {
 
     @Test
     public void commentingOnAMissingTaskIsNotFound() {
-        auth(ownerToken).body(Map.of("content", "нет задачи"))
+        auth(ownerToken).body(new CommentRequest("нет задачи", null))
             .post("/api/tasks/999999/comments").then().statusCode(404);
     }
 
     private void addMember(Integer userId, int roleId) {
-        auth(ownerToken).body("{\"userId\": " + userId + ", \"roleId\": " + roleId + "}")
+        auth(ownerToken).body(new ProjectMemberRequest(userId, roleId))
             .post("/api/projects/" + projectId + "/members").then().statusCode(201);
     }
 

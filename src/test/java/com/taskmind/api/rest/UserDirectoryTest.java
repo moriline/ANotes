@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.AdminUserStatusRequest;
+import com.taskmind.api.dto.LoginRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -101,7 +103,7 @@ public class UserDirectoryTest {
 
         // Блокировка идёт через /api/admin/users, а туда пускают только глобального
         // администратора: обычного токена тут мало.
-        adminAuth().body("{\"isActive\": false}")
+        adminAuth().body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/" + SEEDED_OLGA_ID + "/status").then().statusCode(200);
 
         auth().get("/api/users?q=olga").then()
@@ -128,7 +130,7 @@ public class UserDirectoryTest {
     /** Токен пользователя admin из сида: единственного с флагом isAdmin. */
     private RequestSpecification adminAuth() {
         String adminToken = given().contentType(ContentType.JSON)
-            .body("{\"username\":\"admin\",\"password\":\"admin123\"}")
+            .body(new LoginRequest("admin", "admin123"))
             .post("/api/auth/login").then().statusCode(200)
             .extract().jsonPath().getString("token");
         return TestAuthHelper.authenticated(adminToken);

@@ -1,6 +1,7 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.ProjectRequest;
 import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.spi.MembershipRepository;
 import io.quarkus.test.junit.QuarkusTest;
@@ -91,7 +92,7 @@ public class ProjectListAccessTest {
 
     private Integer createProject(String token, String name) {
         return auth(token)
-            .body("{\"name\": \"" + name + "\"}")
+            .body(new ProjectRequest(name, null))
             .post("/api/projects")
             .then().statusCode(201)
             .extract().jsonPath().getInt("id");

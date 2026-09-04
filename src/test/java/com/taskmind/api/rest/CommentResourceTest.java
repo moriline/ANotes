@@ -1,13 +1,16 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.CommentRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.domain.model.Visibility;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.Map;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
@@ -26,10 +29,10 @@ public class CommentResourceTest {
         long ts = System.nanoTime();
         token = TestAuthHelper.registerAndLogin("comment-" + ts, "comment-" + ts + "@test.com", "Pass123!");
 
-        Integer projectId = auth().body("{\"name\": \"comment-project-" + ts + "\"}")
+        Integer projectId = auth().body(new ProjectRequest("comment-project-" + ts, null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
-        taskId = auth().body("{\"title\": \"comment task\"}")
+        taskId = auth().body(new TaskRequest("comment task", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -37,12 +40,12 @@ public class CommentResourceTest {
     @Test
     public void commentLifecycle() {
         Integer commentId = auth()
-            .body(Map.of("content", "Initial comment"))
+            .body(new CommentRequest("Initial comment", null))
             .post("/api/tasks/" + taskId + "/comments")
             .then().statusCode(201)
             .extract().path("id");
 
-        auth().body(Map.of("content", "Updated comment"))
+        auth().body(new CommentRequest("Updated comment", null))
             .put("/api/comments/" + commentId)
             .then().statusCode(200)
             .body("content", is("Updated comment"))
@@ -58,21 +61,21 @@ public class CommentResourceTest {
     @Test
     public void visibilityDefaultsToPublicAndRoundTrips() {
         // Без поля в запросе — PUBLIC.
-        auth().body(Map.of("content", "no visibility given"))
+        auth().body(new CommentRequest("no visibility given", null))
             .post("/api/tasks/" + taskId + "/comments")
             .then().statusCode(201)
             .body("visibility", is("PUBLIC"));
 
         // Явный INTERNAL сохраняется.
         Integer internalId = auth()
-            .body(Map.of("content", "budget note", "visibility", "INTERNAL"))
+            .body(new CommentRequest("budget note", Visibility.INTERNAL))
             .post("/api/tasks/" + taskId + "/comments")
             .then().statusCode(201)
             .body("visibility", is("INTERNAL"))
             .extract().path("id");
 
         // Правка текста без visibility в запросе не сбрасывает INTERNAL на PUBLIC.
-        auth().body(Map.of("content", "budget note (fixed)"))
+        auth().body(new CommentRequest("budget note (fixed)", null))
             .put("/api/comments/" + internalId)
             .then().statusCode(200)
             .body("visibility", is("INTERNAL"));

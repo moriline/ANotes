@@ -1,6 +1,7 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.api.dto.AdminUserResponse;
+import com.taskmind.api.dto.AdminUserStatusRequest;
 import com.taskmind.application.service.AuthService;
 import com.taskmind.infrastructure.db.UserEntity;
 import jakarta.annotation.security.RolesAllowed;
@@ -12,7 +13,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Управление учётными записями. Ручки глобальные, поэтому и право на них
@@ -55,11 +55,11 @@ public class AdminUserResource {
     @Path("/{id}/status")
     @Transactional
     public AdminUserResponse updateStatus(@PathParam("id") Integer id,
-                                          Map<String, Boolean> body,
+                                          AdminUserStatusRequest body,
                                           @Context SecurityContext sec) {
         UserEntity user = requireUser(id);
 
-        Boolean isActive = body == null ? null : body.get("isActive");
+        Boolean isActive = body == null ? null : body.isActive();
         if (isActive == null) {
             throw new BadRequestException("Требуется поле isActive (true или false)");
         }

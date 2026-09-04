@@ -1,5 +1,6 @@
 package com.taskmind;
 
+import com.taskmind.api.dto.ProjectRequest;
 import com.taskmind.api.rest.TestAuthHelper;
 import com.taskmind.infrastructure.db.CommentEntity;
 import com.taskmind.infrastructure.db.ProjectEntity;
@@ -68,7 +69,7 @@ public class TestDataCleanupTest {
         assertEquals(5, newUserId);
 
         Integer newProjectId = TestAuthHelper.authenticated(token)
-            .body("{\"name\": \"cleanup-probe-project\"}")
+            .body(new ProjectRequest("cleanup-probe-project", null))
             .post("/api/projects")
             .then().statusCode(201)
             .extract().jsonPath().getInt("id");
