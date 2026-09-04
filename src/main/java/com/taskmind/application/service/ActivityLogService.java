@@ -20,8 +20,11 @@ import java.util.Map;
  * начала, но её никто не заполнял и не читал — единственными записями были четыре
  * строки из сида.
  *
- * <p>Запись события никогда не должна ронять основную операцию: если лог почему-то
- * не пишется, задача всё равно должна создаться. Поэтому ошибки здесь гасятся.
+ * <p>Событие пишется в той же транзакции, что и сама операция (метод
+ * {@link jakarta.transaction.Transactional} с семантикой REQUIRED присоединяется
+ * к транзакции вызывающего), и ошибка записи её роняет: лента — это журнал того,
+ * что произошло, и «операция прошла, а следа в ленте нет» быть не должно. Раньше
+ * ошибки здесь гасились — история молча теряла записи, а сборка об этом не знала.
  */
 @ApplicationScoped
 public class ActivityLogService {
@@ -46,20 +49,15 @@ public class ActivityLogService {
     @Transactional
     public void record(Integer projectId, Integer taskId, Integer userId,
                        ActivityAction action, Map<String, Object> details, Visibility visibility) {
-        try {
-            var entity = new ActivityLogEntity();
-            entity.projectId = projectId;
-            entity.taskId = taskId;
-            entity.userId = userId;
-            entity.actionType = action.name();
-            entity.actionDetails = serialize(details);
-            entity.visibility = (visibility != null ? visibility : Visibility.PUBLIC).name();
-            entity.createdAt = Instant.now().toEpochMilli();
-            entity.persist();
-        } catch (Exception e) {
-            // Лента — вспомогательная вещь: молча пропускаем запись, но не срываем операцию.
-            System.err.println("Не удалось записать событие " + action + ": " + e.getMessage());
-        }
+        var entity = new ActivityLogEntity();
+        entity.projectId = projectId;
+        entity.taskId = taskId;
+        entity.userId = userId;
+        entity.actionType = action.name();
+        entity.actionDetails = serialize(details);
+        entity.visibility = (visibility != null ? visibility : Visibility.PUBLIC).name();
+        entity.createdAt = Instant.now().toEpochMilli();
+        entity.persist();
     }
 
     public List<ActivityResponse> listByProject(Integer projectId, int limit, int offset) {
