@@ -1,6 +1,8 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.AdminUserStatusRequest;
+import com.taskmind.api.dto.LoginRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -44,7 +46,7 @@ public class AdminUserResourceTest {
     public void anonymousIsRejected() {
         given().get("/api/admin/users").then().statusCode(401);
         given().delete("/api/admin/users/" + OLGA_ID).then().statusCode(401);
-        given().contentType(ContentType.JSON).body("{\"isActive\": false}")
+        given().contentType(ContentType.JSON).body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/" + OLGA_ID + "/status").then().statusCode(401);
     }
 
@@ -53,7 +55,7 @@ public class AdminUserResourceTest {
     public void ordinaryUserIsForbiddenEverywhere() {
         auth(userToken).get("/api/admin/users").then().statusCode(403);
         auth(userToken).delete("/api/admin/users/" + OLGA_ID).then().statusCode(403);
-        auth(userToken).body("{\"isActive\": false}")
+        auth(userToken).body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/" + OLGA_ID + "/status").then().statusCode(403);
     }
 
@@ -71,13 +73,13 @@ public class AdminUserResourceTest {
 
     @Test
     public void adminCanBlockAndUnblockUser() {
-        auth(adminToken).body("{\"isActive\": false}")
+        auth(adminToken).body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/" + OLGA_ID + "/status").then()
             .statusCode(200)
             .body("isActive", equalTo(false))
             .body("password", nullValue());
 
-        auth(adminToken).body("{\"isActive\": true}")
+        auth(adminToken).body(new AdminUserStatusRequest(true))
             .put("/api/admin/users/" + OLGA_ID + "/status").then()
             .statusCode(200)
             .body("isActive", equalTo(true));
@@ -94,22 +96,22 @@ public class AdminUserResourceTest {
     @Test
     public void adminCannotDeleteOrBlockHimself() {
         auth(adminToken).delete("/api/admin/users/" + ADMIN_ID).then().statusCode(400);
-        auth(adminToken).body("{\"isActive\": false}")
+        auth(adminToken).body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/" + ADMIN_ID + "/status").then().statusCode(400);
     }
 
     @Test
     public void missingUserIsNotFoundAndEmptyBodyIsRejected() {
         auth(adminToken).delete("/api/admin/users/99999").then().statusCode(404);
-        auth(adminToken).body("{\"isActive\": false}")
+        auth(adminToken).body(new AdminUserStatusRequest(false))
             .put("/api/admin/users/99999/status").then().statusCode(404);
-        auth(adminToken).body("{}")
+        auth(adminToken).body(new AdminUserStatusRequest(null))
             .put("/api/admin/users/" + OLGA_ID + "/status").then().statusCode(400);
     }
 
     private static String loginAsSeededAdmin() {
         return given().contentType(ContentType.JSON)
-            .body("{\"username\":\"admin\",\"password\":\"admin123\"}")
+            .body(new LoginRequest("admin", "admin123"))
             .post("/api/auth/login").then().statusCode(200)
             .extract().jsonPath().getString("token");
     }

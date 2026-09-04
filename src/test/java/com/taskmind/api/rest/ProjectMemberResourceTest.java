@@ -1,6 +1,11 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectMemberRequest;
+import com.taskmind.api.dto.ProjectMemberRoleRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
@@ -44,7 +49,7 @@ public class ProjectMemberResourceTest {
         memberId = meId(memberToken);
         strangerId = meId(strangerToken);
 
-        projectId = auth(ownerToken).body("{\"name\": \"members-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("members-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
@@ -77,7 +82,7 @@ public class ProjectMemberResourceTest {
 
     @Test
     public void addedMemberGetsAccessToTheProjectAndItsTasks() {
-        Integer taskId = auth(ownerToken).body("{\"title\": \"Общая задача\"}")
+        Integer taskId = auth(ownerToken).body(new TaskRequest("Общая задача", null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -91,7 +96,7 @@ public class ProjectMemberResourceTest {
             .statusCode(200)
             .body("name", hasItem("members-project"));
 
-        auth(memberToken).body("{}").post("/api/find").then()
+        auth(memberToken).body(new FindTasksRequest()).post("/api/find").then()
             .statusCode(200)
             .body("tasks.id", hasItem(taskId));
     }
@@ -123,7 +128,7 @@ public class ProjectMemberResourceTest {
         addMember(memberToken, strangerId, ROLE_DEVELOPER).statusCode(403);
 
         // После повышения до Admin — может.
-        auth(ownerToken).body("{\"roleId\": " + ROLE_ADMIN + "}")
+        auth(ownerToken).body(new ProjectMemberRoleRequest(ROLE_ADMIN))
             .put(membersPath() + "/" + memberId).then().statusCode(200);
         addMember(memberToken, strangerId, ROLE_DEVELOPER).statusCode(201);
     }
@@ -132,7 +137,7 @@ public class ProjectMemberResourceTest {
     public void ownerCanChangeMemberRole() {
         addMember(ownerToken, memberId, ROLE_DEVELOPER).statusCode(201);
 
-        auth(ownerToken).body("{\"roleId\": " + ROLE_MANAGER + "}")
+        auth(ownerToken).body(new ProjectMemberRoleRequest(ROLE_MANAGER))
             .put(membersPath() + "/" + memberId).then()
             .statusCode(200)
             .body("roleId", equalTo(ROLE_MANAGER))
@@ -141,7 +146,7 @@ public class ProjectMemberResourceTest {
 
     @Test
     public void ownerCannotBeDemotedOrRemoved() {
-        auth(ownerToken).body("{\"roleId\": " + ROLE_DEVELOPER + "}")
+        auth(ownerToken).body(new ProjectMemberRoleRequest(ROLE_DEVELOPER))
             .put(membersPath() + "/" + ownerId).then().statusCode(400);
 
         auth(ownerToken).delete(membersPath() + "/" + ownerId).then().statusCode(400);
@@ -166,7 +171,7 @@ public class ProjectMemberResourceTest {
 
     @Test
     public void changingOrRemovingSomebodyWhoIsNotAMemberGives404() {
-        auth(ownerToken).body("{\"roleId\": " + ROLE_MANAGER + "}")
+        auth(ownerToken).body(new ProjectMemberRoleRequest(ROLE_MANAGER))
             .put(membersPath() + "/" + strangerId).then().statusCode(404);
 
         auth(ownerToken).delete(membersPath() + "/" + strangerId).then().statusCode(404);
@@ -184,7 +189,7 @@ public class ProjectMemberResourceTest {
 
     private io.restassured.response.ValidatableResponse addMember(String token, Integer userId, int roleId) {
         return auth(token)
-            .body("{\"userId\": " + userId + ", \"roleId\": " + roleId + "}")
+            .body(new ProjectMemberRequest(userId, roleId))
             .post(membersPath())
             .then();
     }

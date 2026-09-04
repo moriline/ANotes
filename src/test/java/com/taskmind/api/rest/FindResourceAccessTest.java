@@ -1,6 +1,9 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
 import com.taskmind.domain.model.ProjectMembership;
 import com.taskmind.domain.spi.MembershipRepository;
 import io.quarkus.test.junit.QuarkusTest;
@@ -57,7 +60,7 @@ class FindResourceAccessTest {
     @Test
     @Order(2)
     void ownerSeesOnlyOwnTasks() {
-        auth(tokenA).body("{}")
+        auth(tokenA).body(new FindTasksRequest())
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -68,7 +71,7 @@ class FindResourceAccessTest {
     @Test
     @Order(3)
     void strangerDoesNotSeeForeignTasksWithEmptyBody() {
-        auth(tokenB).body("{}")
+        auth(tokenB).body(new FindTasksRequest())
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -79,7 +82,10 @@ class FindResourceAccessTest {
     @Test
     @Order(4)
     void titleSearchIsScopedToAccessibleProjects() {
-        auth(tokenB).body("{\"titleSearch\": \"Classified\"}")
+        FindTasksRequest byTitle = new FindTasksRequest();
+        byTitle.titleSearch = "Classified";
+
+        auth(tokenB).body(byTitle)
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -90,7 +96,10 @@ class FindResourceAccessTest {
     @Test
     @Order(5)
     void targetingForeignProjectByIdReturnsEmpty() {
-        auth(tokenB).body("{\"projectId\": " + projectAId + "}")
+        FindTasksRequest byForeignProject = new FindTasksRequest();
+        byForeignProject.projectId = projectAId;
+
+        auth(tokenB).body(byForeignProject)
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -102,7 +111,7 @@ class FindResourceAccessTest {
     void memberSeesProjectTasksAfterBeingAdded() {
         membershipRepository.save(ProjectMembership.create(projectAId, userBId, ROLE_DEVELOPER));
 
-        auth(tokenB).body("{}")
+        auth(tokenB).body(new FindTasksRequest())
         .when().post("/api/find")
         .then()
             .statusCode(200)
@@ -113,21 +122,21 @@ class FindResourceAccessTest {
     @Test
     @Order(7)
     void unauthenticatedIsRejected() {
-        given().contentType(ContentType.JSON).body("{}")
+        given().contentType(ContentType.JSON).body(new FindTasksRequest())
         .when().post("/api/find")
         .then()
             .statusCode(401);
     }
 
     private static Integer createProject(String token, String name) {
-        Response r = auth(token).body("{\"name\": \"" + name + "\"}")
+        Response r = auth(token).body(new ProjectRequest(name, null))
             .when().post("/api/projects")
             .then().statusCode(201).extract().response();
         return r.jsonPath().getInt("id");
     }
 
     private static void createTask(String token, Integer projectId, String title) {
-        auth(token).body("{\"title\": \"" + title + "\"}")
+        auth(token).body(new TaskRequest(title, null, null))
             .when().post("/api/projects/" + projectId + "/tasks")
             .then().statusCode(201);
     }

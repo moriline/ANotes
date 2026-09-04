@@ -1,6 +1,13 @@
 package com.taskmind.api.rest;
 
 import com.taskmind.TestDataCleanup;
+import com.taskmind.api.dto.DiscussionBlockRequest;
+import com.taskmind.api.dto.FindTasksRequest;
+import com.taskmind.api.dto.ProjectRequest;
+import com.taskmind.api.dto.TaskRequest;
+import com.taskmind.api.dto.TaskSummaryRequest;
+import com.taskmind.api.dto.TaskUpdateRequest;
+import com.taskmind.domain.model.BlockType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
@@ -32,7 +39,7 @@ public class FindContentSearchTest {
         ownerToken = TestAuthHelper.registerAndLogin("find-owner-" + ts, "find-owner-" + ts + "@test.com", "Pass123!");
         strangerToken = TestAuthHelper.registerAndLogin("find-stranger-" + ts, "find-stranger-" + ts + "@test.com", "Pass123!");
 
-        projectId = auth(ownerToken).body("{\"name\": \"content-search-project\"}")
+        projectId = auth(ownerToken).body(new ProjectRequest("content-search-project", null))
             .post("/api/projects").then().statusCode(201)
             .extract().jsonPath().getInt("id");
 
@@ -41,15 +48,15 @@ public class FindContentSearchTest {
         descriptionTaskId = createTask("Задача с описанием");
 
         // Вывод модели, записанный в summary.
-        auth(ownerToken).body("{\"summary\": \"Причина найдена: ZZTOKENSUM в конфиге пула\"}")
+        auth(ownerToken).body(new TaskSummaryRequest("Причина найдена: ZZTOKENSUM в конфиге пула"))
             .put("/api/tasks/" + summaryTaskId + "/summary").then().statusCode(200);
 
         // Вывод модели, записанный блоком обсуждения.
         auth(ownerToken)
-            .body("{\"author\": \"claude\", \"type\": \"DECISION\", \"content\": \"Решение: включить ZZTOKENDISC\"}")
+            .body(new DiscussionBlockRequest(null, null, "claude", BlockType.DECISION, "Решение: включить ZZTOKENDISC"))
             .post("/api/tasks/" + discussionTaskId + "/discussion").then().statusCode(201);
 
-        auth(ownerToken).body("{\"description\": \"Здесь встречается ZZTOKENDESC\"}")
+        auth(ownerToken).body(new TaskUpdateRequest(null, "Здесь встречается ZZTOKENDESC", null, null, null, null, null, null, null))
             .patch("/api/projects/" + projectId + "/tasks/" + descriptionTaskId).then().statusCode(200);
     }
 
@@ -93,18 +100,24 @@ public class FindContentSearchTest {
 
     @Test
     public void contentSearchIsCombinedWithOtherFiltersByAnd() {
-        auth(ownerToken).body("{\"isArchived\": true}")
+        auth(ownerToken).body(new TaskUpdateRequest(null, null, null, null, null, null, null, null, true))
             .patch("/api/projects/" + projectId + "/tasks/" + summaryTaskId).then().statusCode(200);
 
-        auth(ownerToken).body("{\"contentSearch\": \"ZZTOKENSUM\", \"isArchived\": true}")
+        FindTasksRequest archivedMatch = contentSearch("ZZTOKENSUM");
+        archivedMatch.isArchived = true;
+        auth(ownerToken).body(archivedMatch)
             .post("/api/find").then().statusCode(200)
             .body("tasks.id", contains(summaryTaskId));
 
-        auth(ownerToken).body("{\"contentSearch\": \"ZZTOKENSUM\", \"isArchived\": false}")
+        FindTasksRequest activeMatch = contentSearch("ZZTOKENSUM");
+        activeMatch.isArchived = false;
+        auth(ownerToken).body(activeMatch)
             .post("/api/find").then().statusCode(200)
             .body("tasks", hasSize(0));
 
-        auth(ownerToken).body("{\"contentSearch\": \"ZZTOKENSUM\", \"projectId\": " + projectId + "}")
+        FindTasksRequest projectMatch = contentSearch("ZZTOKENSUM");
+        projectMatch.projectId = projectId;
+        auth(ownerToken).body(projectMatch)
             .post("/api/find").then().statusCode(200)
             .body("tasks.id", contains(summaryTaskId));
     }
@@ -121,12 +134,19 @@ public class FindContentSearchTest {
     }
 
     private io.restassured.response.ValidatableResponse search(String token, String content) {
-        return auth(token).body("{\"contentSearch\": \"" + content + "\"}")
+        return auth(token).body(contentSearch(content))
             .post("/api/find").then().statusCode(200);
     }
 
+    /** {@code contentSearch}-фильтр, к которому тесты дописывают остальные поля. */
+    private static FindTasksRequest contentSearch(String content) {
+        FindTasksRequest query = new FindTasksRequest();
+        query.contentSearch = content;
+        return query;
+    }
+
     private Integer createTask(String title) {
-        return auth(ownerToken).body("{\"title\": \"" + title + "\"}")
+        return auth(ownerToken).body(new TaskRequest(title, null, null))
             .post("/api/projects/" + projectId + "/tasks").then().statusCode(201)
             .extract().jsonPath().getInt("id");
     }
